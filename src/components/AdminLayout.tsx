@@ -71,7 +71,7 @@ export default function AdminLayout({
               initials
             });
           }
-        } catch (e) {
+        } catch {
           // ignore
         }
       }

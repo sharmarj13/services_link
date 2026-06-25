@@ -9,7 +9,6 @@ import {
   FiUsers,
   FiClipboard,
   FiCheck,
-  FiInfo,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 

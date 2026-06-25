@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FiUsers, FiMapPin, FiShield, FiTrendingUp, FiActivity } from "react-icons/fi";
+import { FiUsers, FiShield, FiActivity } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
 export default function AdministrationOverviewPage() {

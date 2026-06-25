@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   FiPlus,
@@ -12,7 +11,7 @@ import {
   FiBookOpen,
 } from "react-icons/fi";
 import CustomerLayout from "@/components/CustomerLayout";
-import NewRequestModal from "@/app/customer/modal/NewRequestModal";
+import NewRequestModal, { CustomerRequestDetail } from "@/app/customer/modal/NewRequestModal";
 
 // Stepper stages
 const STEP_LABELS = ["Assigned", "Started", "In-Progress", "Completed"];
@@ -44,7 +43,7 @@ export default function CustomerOverviewPage() {
   // Load user-created requests from localStorage on mount and update lists & counts
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem("customerRequests") || "[]");
+      const stored: CustomerRequestDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
       
       const INITIAL_OVERVIEW_DATA = [
         {
@@ -64,7 +63,7 @@ export default function CustomerOverviewPage() {
       ];
 
       if (stored.length > 0) {
-        const mapped = stored.map((r: any) => ({
+        const mapped = stored.map((r: CustomerRequestDetail) => ({
           id: r.id,
           title: r.title,
           location: r.siteLocation || r.location || "Facility Area 1A",
@@ -77,7 +76,7 @@ export default function CustomerOverviewPage() {
               : "bg-amber-50 text-amber-700 border-amber-200",
         }));
 
-        const storedMap = new Map(mapped.map((item: any) => [item.id, item]));
+        const storedMap = new Map(mapped.map((item) => [item.id, item]));
         
         const mergedList = INITIAL_OVERVIEW_DATA.map((job) => {
           if (storedMap.has(job.id)) {
@@ -95,7 +94,7 @@ export default function CustomerOverviewPage() {
         let extraAssigned = 0;
         let extraCompleted = 0;
 
-        stored.forEach((r: any) => {
+        stored.forEach((r: CustomerRequestDetail) => {
           const isDefault = r.id === "99402" || r.id === "99408";
           if (!isDefault) {
             if (r.status === "Completed") {
@@ -106,8 +105,8 @@ export default function CustomerOverviewPage() {
           }
         });
 
-        const is99402Completed = stored.some((r: any) => r.id === "99402" && r.status === "Completed");
-        const is99408Completed = stored.some((r: any) => r.id === "99408" && r.status === "Completed");
+        const is99402Completed = stored.some((r: CustomerRequestDetail) => r.id === "99402" && r.status === "Completed");
+        const is99408Completed = stored.some((r: CustomerRequestDetail) => r.id === "99408" && r.status === "Completed");
         
         let baseAssigned = 2;
         if (is99402Completed) baseAssigned--;
@@ -119,7 +118,7 @@ export default function CustomerOverviewPage() {
     } catch {}
   }, []);
 
-  const handleModalSubmit = (fullDetail: any) => {
+  const handleModalSubmit = (fullDetail: CustomerRequestDetail) => {
     const newReq = {
       id: fullDetail.id,
       title: fullDetail.title,

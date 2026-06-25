@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FiTool, FiCheck, FiAlertCircle, FiUserPlus, FiBell } from "react-icons/fi";
+import { FiTool, FiCheck, FiAlertCircle, FiBell } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
 interface NotificationItem {

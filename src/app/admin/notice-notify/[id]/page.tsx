@@ -6,10 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   FiRotateCcw,
   FiArrowLeft,
-  FiUser,
   FiFileText,
-  FiClock,
-  FiCheckCircle,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 

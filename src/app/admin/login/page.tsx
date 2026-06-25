@@ -31,7 +31,7 @@ export default function AdminLoginPage() {
       if (saved) {
         try {
           admins = JSON.parse(saved);
-        } catch (e) {
+        } catch {
           // ignore
         }
       }

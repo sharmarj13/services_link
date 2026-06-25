@@ -3,11 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import {
-  FiClock,
   FiCheck,
-  FiUser,
   FiMapPin,
-  FiSliders,
   FiFilter,
   FiSearch,
 } from "react-icons/fi";
@@ -30,7 +27,7 @@ export default function AdminInProgressPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [techFilter, setTechFilter] = useState("All");
 
-  const [activeJobsList, setActiveJobsList] = useState<ActiveJob[]>(() => {
+  const [activeJobsList] = useState<ActiveJob[]>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("servicelink_requests");
       if (saved) {
@@ -51,7 +48,7 @@ export default function AdminInProgressPage() {
               priority: r.priority,
             };
           });
-        } catch (e) { }
+        } catch { }
       }
     }
     return [

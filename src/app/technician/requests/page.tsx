@@ -2,14 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   FiSearch,
   FiFilter,
   FiDownload,
-  FiPlus,
-  FiCheck,
-  FiChevronRight,
   FiChevronDown
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
@@ -111,12 +107,11 @@ const JOBS_DATA: JobRequest[] = [
 ];
 
 export default function WorkRequestsPage() {
-  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<"Assigned" | "Completed">("Assigned");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [jobsList, setJobsList] = useState<JobRequest[]>(JOBS_DATA);
+  const [jobsList] = useState<JobRequest[]>(JOBS_DATA);
 
   const handleStartJob = (id: string) => {
     // update state to simulate job start

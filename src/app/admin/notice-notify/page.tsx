@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { FiChevronRight, FiFilter, FiSearch, FiBookOpen } from "react-icons/fi";
+import { FiChevronRight, FiSearch, FiBookOpen } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
 type Priority = "High" | "Medium" | "Low";

@@ -4,15 +4,10 @@ import React, { useState } from "react";
 import {
   CheckCircle,
   Clock,
-  Plus,
   Check,
   ChevronDown,
   TrendingUp,
-  MapPin,
-  ShieldAlert,
   Briefcase,
-  Activity,
-  Sparkles,
   Trash2
 } from "lucide-react";
 import TechnicianLayout from "@/components/TechnicianLayout";

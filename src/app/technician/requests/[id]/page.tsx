@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   FiUser,
   FiMapPin,
@@ -13,13 +13,10 @@ import {
   FiCpu,
   FiPhone,
   FiMail,
-  FiPlus,
   FiMessageSquare,
   FiBell,
-  FiTrash2,
   FiArrowLeft,
   FiRotateCcw,
-  FiLock,
   FiX
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
@@ -160,10 +157,8 @@ const DEFAULT_JOB_DETAIL: JobDetail = {
 
 export default function JobDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const [job, setJob] = useState<JobDetail>(DEFAULT_JOB_DETAIL);
   const [isStarted, setIsStarted] = useState(false);
-  const [isFinishingJob, setIsFinishingJob] = useState(false);
   const [viewingImages, setViewingImages] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -199,12 +194,7 @@ export default function JobDetailPage() {
     alert(`Opening email client to contact ${job.contactName}...`);
   };
 
-  const handleDeleteAttachment = (index: number) => {
-    setJob(prev => {
-      const updated = prev.attachments.filter((_, i) => i !== index);
-      return { ...prev, attachments: updated };
-    });
-  };
+
 
   if (job.status === "Completed") {
     return (

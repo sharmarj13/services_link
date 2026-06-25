@@ -15,8 +15,6 @@ interface AuthPageProps {
   bgImage?: string;
 }
 
-const PRIMARY = "#D12031";
-
 function Logo() {
   return (
     <div className="flex justify-center mb-8">

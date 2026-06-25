@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FiUser, FiMessageSquare } from "react-icons/fi";
+import { FiUser } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import ChatModal from "@/components/ChatModal";
 

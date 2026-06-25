@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import TechnicianLayout from "@/components/TechnicianLayout";
-import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiTrash2, FiX, FiCheck } from "react-icons/fi";
+import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiTrash2, FiCheck } from "react-icons/fi";
 
 export default function SettingsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);

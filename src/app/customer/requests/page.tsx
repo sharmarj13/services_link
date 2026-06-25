@@ -7,7 +7,7 @@ import {
 } from "react-icons/fi";
 import CustomerLayout from "@/components/CustomerLayout";
 import FilterModal from "@/components/FilterModal";
-import NewRequestModal from "@/app/customer/modal/NewRequestModal";
+import NewRequestModal, { CustomerRequestDetail } from "@/app/customer/modal/NewRequestModal";
 
 type Status = "All" | "Assigned" | "In-Progress" | "Active" | "Completed";
 type Priority = "High" | "Medium" | "Low";
@@ -88,9 +88,9 @@ export default function CustomerRequestsPage() {
 
   const loadFromStorage = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem("customerRequests") || "[]");
+      const stored: CustomerRequestDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
       if (stored.length > 0) {
-        const mapped: JobRequest[] = stored.map((r: any) => ({
+        const mapped: JobRequest[] = stored.map((r: CustomerRequestDetail) => ({
           id: r.id,
           title: r.title,
           location: r.siteLocation || r.location || "Facility Area 1A",
@@ -120,7 +120,7 @@ export default function CustomerRequestsPage() {
     } catch {}
   };
 
-  const handleModalSubmit = (fullDetail: any) => {
+  const handleModalSubmit = (fullDetail: CustomerRequestDetail) => {
     const newJob: JobRequest = {
       id: fullDetail.id,
       title: fullDetail.title,

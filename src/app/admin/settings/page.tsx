@@ -9,13 +9,11 @@ import {
   FiLock,
   FiEye,
   FiEyeOff,
-  FiTrash2,
   FiCheck,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
 export default function AdminSettingsPage() {
-  const router = useRouter();
 
   /* ── Profile fields ── */
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
@@ -47,7 +45,7 @@ export default function AdminSettingsPage() {
             setLastName(parts.slice(1).join(" ") || "");
           }
           setEmail(user.email || "");
-        } catch (e) {}
+        } catch {}
       }
     }
   }, []);
@@ -72,7 +70,7 @@ export default function AdminSettingsPage() {
       let admins = [];
       const saved = localStorage.getItem("servicelink_admins");
       if (saved) {
-        try { admins = JSON.parse(saved); } catch (e) {}
+        try { admins = JSON.parse(saved); } catch {}
       }
       
       const index = admins.findIndex((adm: any) => adm.id === currentAdmin.id);
@@ -120,7 +118,7 @@ export default function AdminSettingsPage() {
       let admins = [];
       const saved = localStorage.getItem("servicelink_admins");
       if (saved) {
-        try { admins = JSON.parse(saved); } catch (e) {}
+        try { admins = JSON.parse(saved); } catch {}
       }
 
       const match = admins.find((adm: any) => adm.id === currentAdmin.id);

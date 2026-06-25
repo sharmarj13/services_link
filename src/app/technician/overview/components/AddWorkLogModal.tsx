@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CheckCircle, Image as ImageIcon, Check } from "lucide-react";
+import { CheckCircle, Image as ImageIcon } from "lucide-react";
 
 export interface WorkEntryForm {
   requestTitle: string;

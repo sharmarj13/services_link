@@ -5,10 +5,40 @@ import Image from "next/image";
 import { FiCalendar, FiTrash2, FiCheck } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
 
+export interface CustomerRequestDetail {
+  id: string;
+  title: string;
+  status: string;
+  customer: string;
+  siteLocation: string;
+  department: string;
+  scheduleDate: string;
+  poNumber: string;
+  assetId: string;
+  scopeOfWork: string;
+  detailedDescription: string;
+  contactName: string;
+  contactRole: string;
+  contactInitials: string;
+  attachments: string[];
+  workType: string;
+  workType2: string;
+  priority: string;
+  duration: string;
+  unit: string;
+  quantity: string;
+  category: string;
+  ppeUsed: string[];
+  additionalNotes: string;
+  beforePhotos: string[];
+  afterPhotos: string[];
+  location?: string;
+}
+
 interface NewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (newRequest: any) => void;
+  onSubmit: (newRequest: CustomerRequestDetail) => void;
 }
 
 export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewRequestModalProps) {

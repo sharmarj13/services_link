@@ -165,7 +165,7 @@ export default function AdminRequestDetailPage() {
               });
               loadedFromStorage = true;
             }
-          } catch (e) {}
+          } catch {}
         }
       }
 
@@ -354,7 +354,7 @@ export default function AdminRequestDetailPage() {
                             let reqs: Array<{ id: string; assignedTechnician?: string; status?: string }> = [];
                             const saved = localStorage.getItem("servicelink_requests");
                             if (saved) {
-                              try { reqs = JSON.parse(saved); } catch (e) {}
+                              try { reqs = JSON.parse(saved); } catch {}
                             }
                             const index = reqs.findIndex((r: { id: string }) => r.id === job.id);
                             if (index !== -1) {

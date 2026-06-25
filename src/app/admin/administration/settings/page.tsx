@@ -7,7 +7,6 @@ import {
   FiPlus,
   FiCheck,
   FiUserPlus,
-  FiLock,
   FiSliders,
   FiTrash2,
 } from "react-icons/fi";
@@ -41,7 +40,7 @@ export default function AdministrationSettingsPage() {
       if (saved) {
         try {
           return JSON.parse(saved);
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -59,7 +58,7 @@ export default function AdministrationSettingsPage() {
       if (saved) {
         try {
           return JSON.parse(saved);
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -129,7 +128,7 @@ export default function AdministrationSettingsPage() {
       if (current) {
         try {
           currentAdminId = JSON.parse(current).id;
-        } catch (e) {}
+        } catch {}
       }
     }
     if (id === currentAdminId || id === "1") {

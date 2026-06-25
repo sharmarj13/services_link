@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   FiClipboard,
   FiClock,
-  FiCheckCircle,
   FiAlertCircle,
   FiArrowUpRight,
   FiTrendingUp,
@@ -18,7 +17,6 @@ import AdminLayout from "@/components/AdminLayout";
 
 export default function AdminOverviewPage() {
   const [timeScope, setTimeScope] = useState("This Month");
-  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [hoveredPie, setHoveredPie] = useState<number | null>(null);
   const [hoveredLinePoint, setHoveredLinePoint] = useState<number | null>(null);
 
@@ -387,8 +385,6 @@ export default function AdminOverviewPage() {
                   <div
                     key={idx}
                     className="space-y-1.5 cursor-pointer group"
-                    onMouseEnter={() => setHoveredBar(idx)}
-                    onMouseLeave={() => setHoveredBar(null)}
                   >
                     <div className="flex items-center justify-between text-xs font-bold text-gray-700">
                       <span>{b.label}</span>
