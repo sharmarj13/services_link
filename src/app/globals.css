@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+@source "../../src";
+
+/* Trigger CSS Rebuild for Tailwind v4 */
+:root {
+  --primary: #D12031;
+  --primary-dark: #a81828;
+  --primary-light: #e84055;
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Unified Select Dropdowns Styling ─────────────────────────────────────── */
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  
+  /* Custom chevron SVG background image matching signup chevron down */
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 15px !important;
+  
+  padding-right: 36px !important; /* Spacing for the arrow */
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important; /* Matches border-gray-300 */
+  border-radius: 8px !important; /* Matches rounded-lg */
+  
+  font-size: 14px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  color: #111827 !important; /* Matches text-gray-900 */
+  outline: none !important;
+  cursor: pointer !important;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-image 0.15s ease-in-out !important;
+}
+
+/* Hover State */
+select:hover {
+  border-color: #9ca3af !important; /* Matches border-gray-400 */
+}
+
+/* Focus State */
+select:focus {
+  border-color: #D12031 !important; /* Matches primary theme color */
+  box-shadow: 0 0 0 1px #D12031 !important;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23D12031' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E") !important;
+}
+
+/* Options dropdown matching the design */
+select option {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  padding: 10px !important;
+}
+
+/* Auto-hide duplicate manual chevron SVG/span overlays following select elements in relative wrappers */
+.relative select + svg,
+.relative select + span {
+  display: none !important;
+}
