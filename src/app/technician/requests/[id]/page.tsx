@@ -17,7 +17,8 @@ import {
   FiBell,
   FiArrowLeft,
   FiRotateCcw,
-  FiX
+  FiX,
+  FiAlertCircle
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
 
@@ -46,6 +47,16 @@ interface JobDetail {
   additionalNotes?: string;
   beforePhotos?: string[];
   afterPhotos?: string[];
+}
+
+interface Notice {
+  jobId: string;
+  noticeType: string;
+  priority: string;
+  description: string;
+  actionRequired: boolean;
+  date: string;
+  time: string;
 }
 
 const MOCK_JOBS_DETAILS: Record<string, JobDetail> = {
@@ -160,9 +171,44 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobDetail>(DEFAULT_JOB_DETAIL);
   const [isStarted, setIsStarted] = useState(false);
   const [viewingImages, setViewingImages] = useState<string[] | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
     if (params?.id && typeof params.id === "string") {
+      // Load notice
+      try {
+        let notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
+        if (notices.length === 0) {
+          notices = [
+            {
+              jobId: "99410",
+              noticeType: "Maintenance Issue",
+              priority: "High",
+              description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
+              actionRequired: true,
+              date: "Jun 24, 2026",
+              time: "11:30 AM"
+            },
+            {
+              jobId: "99411",
+              noticeType: "Safety Hazard",
+              priority: "Urgent",
+              description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
+              actionRequired: true,
+              date: "Jun 25, 2026",
+              time: "09:45 AM"
+            }
+          ];
+          localStorage.setItem("servicelink_notices", JSON.stringify(notices));
+        }
+        const foundNotice = notices.find((n: Notice) => n.jobId === params.id);
+        if (foundNotice) {
+          setNotice(foundNotice);
+        } else {
+          setNotice(null);
+        }
+      } catch {}
+
       const found = MOCK_JOBS_DETAILS[params.id];
       if (found) {
         setJob(found);
@@ -313,6 +359,68 @@ export default function JobDetailPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Notice & Notify Details Card */}
+              {notice && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl shadow-sm p-6 relative overflow-hidden mt-6">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-red-100/30 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-[#D12031]">
+                      <FiAlertCircle size={15} />
+                    </span>
+                    <h3 className="text-[16px] font-bold text-gray-900">
+                      Notice & Notify Details
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-y-5 gap-x-6 mb-5">
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Notice Type</p>
+                      <p className="text-[13.5px] font-bold text-gray-800 mt-1">{notice.noticeType}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Priority Level</p>
+                      <span className="inline-block mt-1 text-[11px] font-bold text-red-700 bg-red-100/70 py-0.5 px-2 rounded-md border border-red-200">
+                        {notice.priority}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Reported On</p>
+                      <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.date} at {notice.time}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Action Required</p>
+                      <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.actionRequired ? "Yes (Authorization Needed)" : "No"}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-red-150/40 pt-4">
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Detailed Description</p>
+                    <p className="text-[13.5px] text-gray-700 leading-relaxed font-semibold mt-1">
+                      {notice.description}
+                    </p>
+                  </div>
+
+                  {/* Evidence Photos */}
+                  <div className="border-t border-[#fca5a5]/40 pt-4 mt-4 font-sans">
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Evidence Photos</p>
+                    <div className="flex gap-3">
+                      {[
+                        { name: "Warehouse_Map.png", img: "/images/warehouse_map.svg" },
+                        { name: "Site.jpg", img: "/images/warehouse_map.svg" }
+                      ].map((file, i) => (
+                        <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white">
+                          <Image src={file.img} alt="Evidence" fill className="object-cover" />
+                          <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white px-2 py-0.5 truncate text-center">
+                            {file.name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column Photos */}

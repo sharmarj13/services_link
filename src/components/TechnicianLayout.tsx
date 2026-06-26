@@ -49,7 +49,6 @@ export default function TechnicianLayout({
     { name: "Work Overview", path: "/technician/overview", icon: <FiGrid size={18} /> },
     { name: "My Job Request", path: "/technician/requests", icon: <FiClipboard size={18} /> },
     { name: "Messages", path: "/technician/messages", icon: <FiMessageSquare size={18} /> },
-    { name: "Notice & Notify", path: "/technician/notice-notify", icon: <FiBell size={18} /> },
     { name: "Notification", path: "/technician/notifications-list", icon: <FiBell size={18} /> },
     { name: "Settings", path: "/technician/settings", icon: <FiSettings size={18} /> },
   ];

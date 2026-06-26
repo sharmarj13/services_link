@@ -12,6 +12,16 @@ import NewRequestModal, { CustomerRequestDetail } from "@/app/customer/modal/New
 type Status = "All" | "Assigned" | "In-Progress" | "Active" | "Completed";
 type Priority = "High" | "Medium" | "Low";
 
+interface Notice {
+  jobId: string;
+  noticeType: string;
+  priority: string;
+  description: string;
+  actionRequired: boolean;
+  date: string;
+  time: string;
+}
+
 interface JobRequest {
   id: string;
   title: string;
@@ -76,6 +86,7 @@ export default function CustomerRequestsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [allJobs, setAllJobs] = useState<JobRequest[]>(JOBS_DATA);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   /* ── Add Modal states ── */
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,6 +99,32 @@ export default function CustomerRequestsPage() {
 
   const loadFromStorage = () => {
     try {
+      let storedNotices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
+      if (storedNotices.length === 0) {
+        storedNotices = [
+          {
+            jobId: "99410",
+            noticeType: "Maintenance Issue",
+            priority: "High",
+            description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
+            actionRequired: true,
+            date: "Jun 24, 2026",
+            time: "11:30 AM"
+          },
+          {
+            jobId: "99411",
+            noticeType: "Safety Hazard",
+            priority: "Urgent",
+            description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
+            actionRequired: true,
+            date: "Jun 25, 2026",
+            time: "09:45 AM"
+          }
+        ];
+        localStorage.setItem("servicelink_notices", JSON.stringify(storedNotices));
+      }
+      setNotices(storedNotices);
+      
       const stored: CustomerRequestDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
       if (stored.length > 0) {
         const mapped: JobRequest[] = stored.map((r: CustomerRequestDetail) => ({
@@ -271,6 +308,11 @@ export default function CustomerRequestsPage() {
                     <p className="text-[12px] text-gray-500 mt-1.5 font-medium">
                       {job.location} • ID #{job.id}
                     </p>
+                    {job.status === "Completed" && notices.some((n: Notice) => n.jobId === job.id) && (
+                      <div className="mt-3 text-[11px] font-bold text-[#D12031] bg-red-50 border border-red-200/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1 w-fit">
+                        Notice & Notify Applied
+                      </div>
+                    )}
                   </div>
 
                   {/* Card bottom */}

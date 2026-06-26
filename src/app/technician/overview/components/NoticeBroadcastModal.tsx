@@ -7,7 +7,12 @@ import { FiChevronDown, FiX } from "react-icons/fi";
 interface NoticeBroadcastModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSendBroadcast: () => void;
+  onSendBroadcast: (data: {
+    noticeType: string;
+    priority: string;
+    description: string;
+    actionRequired: boolean;
+  }) => void;
 }
 
 export default function NoticeBroadcastModal({
@@ -15,7 +20,9 @@ export default function NoticeBroadcastModal({
   onClose,
   onSendBroadcast,
 }: NoticeBroadcastModalProps) {
+  const [noticeType, setNoticeType] = useState("Maintenance Issue");
   const [priority, setPriority] = useState("Low");
+  const [description, setDescription] = useState("");
   const [actionRequired, setActionRequired] = useState(true);
 
   // Prevent background scrolling when modal is open
@@ -31,6 +38,20 @@ export default function NoticeBroadcastModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleSubmit = () => {
+    onSendBroadcast({
+      noticeType,
+      priority,
+      description,
+      actionRequired,
+    });
+    // Reset state values
+    setNoticeType("Maintenance Issue");
+    setPriority("Low");
+    setDescription("");
+    setActionRequired(true);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
@@ -49,7 +70,11 @@ export default function NoticeBroadcastModal({
           <div className="space-y-2">
             <label className="block text-[14px] font-medium text-gray-600">Notice Type</label>
             <div className="relative">
-              <select className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3.5 text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white shadow-sm">
+              <select
+                value={noticeType}
+                onChange={(e) => setNoticeType(e.target.value)}
+                className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3.5 text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white shadow-sm"
+              >
                 <option>Maintenance Issue</option>
                 <option>Safety Hazard</option>
                 <option>General Observation</option>
@@ -83,6 +108,8 @@ export default function NoticeBroadcastModal({
           <div className="space-y-2">
             <label className="block text-[14px] font-medium text-gray-600">Detailed Description</label>
             <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors min-h-[120px] resize-y placeholder:text-gray-400 shadow-sm"
               placeholder="Describe the issue, observations, and any immediate actions taken..."
             ></textarea>
@@ -139,7 +166,7 @@ export default function NoticeBroadcastModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 flex gap-3 sm:gap-4 shrink-0 bg-white">
+        <div className="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-150 flex gap-3 sm:gap-4 shrink-0 bg-white">
           <button
             onClick={onClose}
             className="flex-[0.4] py-3 sm:py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[13px] sm:text-[14px] rounded-xl transition-colors text-center"
@@ -147,7 +174,7 @@ export default function NoticeBroadcastModal({
             Discard Draft
           </button>
           <button
-            onClick={onSendBroadcast}
+            onClick={handleSubmit}
             className="flex-1 py-3 sm:py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[13px] sm:text-[14px] rounded-xl transition-colors text-center shadow-sm"
           >
             Submit Notice

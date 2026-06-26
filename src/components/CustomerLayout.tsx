@@ -49,7 +49,6 @@ export default function CustomerLayout({
     { name: "Work Overview", path: "/customer/overview", icon: <FiGrid size={18} /> },
     { name: "My Request", path: "/customer/requests", icon: <FiClipboard size={18} /> },
     { name: "Messages", path: "/customer/messages", icon: <FiMessageSquare size={18} /> },
-    { name: "Notice & Notify", path: "/customer/notice-notify", icon: <FiBell size={18} /> },
     { name: "Notification", path: "/customer/notifications-list", icon: <FiBell size={18} /> },
     { name: "Settings", path: "/customer/settings", icon: <FiSettings size={18} /> },
   ];

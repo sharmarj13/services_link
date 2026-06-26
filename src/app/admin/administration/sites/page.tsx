@@ -9,6 +9,8 @@ import {
   FiUsers,
   FiClipboard,
   FiCheck,
+  FiUser,
+  FiBriefcase,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
@@ -16,18 +18,19 @@ interface SiteItem {
   id: string;
   name: string;
   address: string;
-  users: number;
-  jobs: number;
+  technician: string;
+  user: string;
   status: string;
+  department: string;
 }
 
 export default function AdministrationSitesPage() {
   const [sites, setSites] = useState<SiteItem[]>([
-    { id: "1", name: "Site A", address: "1201 Cardinal Blvd, City Center", users: 32, jobs: 4, status: "Operational" },
-    { id: "2", name: "Site B", address: "845 Commerce Rd, Industrial Area", users: 18, jobs: 2, status: "Operational" },
-    { id: "3", name: "Site C", address: "302 Industrial Pkwy, West Zone", users: 25, jobs: 5, status: "Maintenance" },
-    { id: "4", name: "Site D", address: "15 Logistics Dr, Logistics Park", users: 10, jobs: 1, status: "Operational" },
-    { id: "5", name: "Site E", address: "77 Innovation Ave, Tech Park", users: 40, jobs: 12, status: "Alert State" },
+    { id: "1", name: "Site A", address: "1201 Cardinal Blvd, City Center", technician: "Karl Smith", user: "Maurice Maldonado", status: "Operational", department: "Maintenance & Ops" },
+    { id: "2", name: "Site B", address: "845 Commerce Rd, Industrial Area", technician: "Sarah Connor", user: "John Doe", status: "Operational", department: "Safety & Compliance" },
+    { id: "3", name: "Site C", address: "302 Industrial Pkwy, West Zone", technician: "Bruce Banner", user: "Jane Foster", status: "Maintenance", department: "Quality Assurance" },
+    { id: "4", name: "Site D", address: "15 Logistics Dr, Logistics Park", technician: "Tony Stark", user: "Pepper Potts", status: "Operational", department: "Logistics" },
+    { id: "5", name: "Site E", address: "77 Innovation Ave, Tech Park", technician: "Stephen Strange", user: "Wong", status: "Alert State", department: "R&D" },
   ]);
 
   // Modal States
@@ -39,9 +42,10 @@ export default function AdministrationSitesPage() {
   // Form Fields
   const [formName, setFormName] = useState("");
   const [formAddress, setFormAddress] = useState("");
-  const [formUsers, setFormUsers] = useState(0);
-  const [formJobs, setFormJobs] = useState(0);
+  const [formTechnician, setFormTechnician] = useState("");
+  const [formUser, setFormUser] = useState("");
   const [formStatus, setFormStatus] = useState("Operational");
+  const [formDepartment, setFormDepartment] = useState("");
 
   const [toastMsg, setToastMsg] = useState("");
 
@@ -53,9 +57,10 @@ export default function AdministrationSitesPage() {
   const handleOpenAddModal = () => {
     setFormName("");
     setFormAddress("");
-    setFormUsers(0);
-    setFormJobs(0);
+    setFormTechnician("");
+    setFormUser("");
     setFormStatus("Operational");
+    setFormDepartment("");
     setIsAddModalOpen(true);
   };
 
@@ -63,9 +68,10 @@ export default function AdministrationSitesPage() {
     setActiveSite(site);
     setFormName(site.name);
     setFormAddress(site.address);
-    setFormUsers(site.users);
-    setFormJobs(site.jobs);
+    setFormTechnician(site.technician);
+    setFormUser(site.user);
     setFormStatus(site.status);
+    setFormDepartment(site.department);
     setIsEditModalOpen(true);
   };
 
@@ -76,17 +82,18 @@ export default function AdministrationSitesPage() {
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formAddress) {
-      alert("Please fill in name and address.");
+    if (!formName || !formAddress || !formTechnician || !formUser || !formDepartment) {
+      alert("Please fill in all required fields.");
       return;
     }
     const newSite: SiteItem = {
       id: String(Date.now()),
       name: formName,
       address: formAddress,
-      users: Number(formUsers),
-      jobs: Number(formJobs),
+      technician: formTechnician,
+      user: formUser,
       status: formStatus,
+      department: formDepartment,
     };
     setSites([...sites, newSite]);
     setIsAddModalOpen(false);
@@ -96,17 +103,22 @@ export default function AdministrationSitesPage() {
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeSite) return;
+    if (!formName || !formAddress || !formTechnician || !formUser || !formDepartment) {
+      alert("Please fill in all required fields.");
+      return;
+    }
     setSites(
       sites.map((s) =>
         s.id === activeSite.id
           ? {
-              ...s,
-              name: formName,
-              address: formAddress,
-              users: Number(formUsers),
-              jobs: Number(formJobs),
-              status: formStatus,
-            }
+            ...s,
+            name: formName,
+            address: formAddress,
+            technician: formTechnician,
+            user: formUser,
+            status: formStatus,
+            department: formDepartment,
+          }
           : s
       )
     );
@@ -127,7 +139,7 @@ export default function AdministrationSitesPage() {
       subtitle="Register, update, and manage operational sites A-E and client headcounts"
     >
       <div className="max-w-7xl pb-10 space-y-6">
-        
+
         {/* Actions header */}
         <div className="flex justify-end">
           <button
@@ -150,13 +162,12 @@ export default function AdministrationSitesPage() {
                 <div className="flex justify-between items-start gap-3 mb-3.5">
                   <h3 className="text-[15px] font-black text-gray-900 leading-tight">{site.name}</h3>
                   <span
-                    className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border ${
-                      site.status === "Operational"
+                    className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border ${site.status === "Operational"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                         : site.status === "Maintenance"
-                        ? "bg-amber-50 text-amber-700 border-amber-100"
-                        : "bg-red-50 text-[#D12031] border-red-100"
-                    }`}
+                          ? "bg-amber-50 text-amber-700 border-amber-100"
+                          : "bg-red-50 text-[#D12031] border-red-100"
+                      }`}
                   >
                     {site.status}
                   </span>
@@ -168,12 +179,16 @@ export default function AdministrationSitesPage() {
                     <span className="truncate">{site.address}</span>
                   </p>
                   <p className="flex items-center gap-1.5">
-                    <FiUsers className="text-gray-400 shrink-0" size={14} />
-                    <span>{site.users} Clients Registered</span>
+                    <FiBriefcase className="text-gray-400 shrink-0" size={14} />
+                    <span>Department: <span className="font-bold text-gray-700">{site.department}</span></span>
                   </p>
                   <p className="flex items-center gap-1.5">
-                    <FiClipboard className="text-gray-400 shrink-0" size={14} />
-                    <span className="font-bold text-[#D12031]">{site.jobs} Active Work Orders</span>
+                    <FiUser className="text-gray-400 shrink-0" size={14} />
+                    <span>Technician: <span className="font-bold text-gray-700">{site.technician}</span></span>
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <FiUsers className="text-gray-400 shrink-0" size={14} />
+                    <span>User: <span className="font-bold text-gray-700">{site.user}</span></span>
                   </p>
                 </div>
               </div>
@@ -235,22 +250,38 @@ export default function AdministrationSitesPage() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Maintenance & Ops"
+                  value={formDepartment}
+                  onChange={(e) => setFormDepartment(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Initial Users</label>
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
                   <input
-                    type="number"
-                    value={formUsers}
-                    onChange={(e) => setFormUsers(Number(e.target.value))}
+                    type="text"
+                    required
+                    placeholder="e.g. Karl Smith"
+                    value={formTechnician}
+                    onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Active Jobs</label>
+                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
                   <input
-                    type="number"
-                    value={formJobs}
-                    onChange={(e) => setFormJobs(Number(e.target.value))}
+                    type="text"
+                    required
+                    placeholder="e.g. Maurice Maldonado"
+                    value={formUser}
+                    onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                   />
                 </div>
@@ -321,22 +352,35 @@ export default function AdministrationSitesPage() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
+                <input
+                  type="text"
+                  required
+                  value={formDepartment}
+                  onChange={(e) => setFormDepartment(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Registered Users</label>
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
                   <input
-                    type="number"
-                    value={formUsers}
-                    onChange={(e) => setFormUsers(Number(e.target.value))}
+                    type="text"
+                    required
+                    value={formTechnician}
+                    onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Active Jobs</label>
+                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
                   <input
-                    type="number"
-                    value={formJobs}
-                    onChange={(e) => setFormJobs(Number(e.target.value))}
+                    type="text"
+                    required
+                    value={formUser}
+                    onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                   />
                 </div>

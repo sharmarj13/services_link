@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TechnicianLayout from "@/components/TechnicianLayout";
 import { FiUser } from "react-icons/fi";
 import ChatModal from "@/components/ChatModal";
 
 const MOCK_MESSAGES = [
   {
-    id: "1",
-    title: "HVAC Repair - Unit 101",
+    id: "99402",
+    title: "HVAC Compressor Maintenance",
     snippet: "I have scheduled the repair for tomorrow morning at 9 AM.",
     sender: "Maurice Maldonado",
     count: 5,
@@ -16,8 +16,8 @@ const MOCK_MESSAGES = [
     date: "6/06/2026"
   },
   {
-    id: "2",
-    title: "Plumbing Issue - Unit 204",
+    id: "99408",
+    title: "Routine Safety Inspection",
     snippet: "Thanks for fixing the leak so quickly!",
     sender: "Maurice Maldonado",
     count: 2,
@@ -25,8 +25,8 @@ const MOCK_MESSAGES = [
     date: "6/06/2026"
   },
   {
-    id: "3",
-    title: "Electrical Maintenance - Lobby",
+    id: "99412",
+    title: "Calibration Check: Unit 7",
     snippet: "We need to order more bulbs for the lobby chandelier.",
     sender: "Maurice Maldonado",
     count: 8,
@@ -34,8 +34,8 @@ const MOCK_MESSAGES = [
     date: "6/06/2026"
   },
   {
-    id: "4",
-    title: "Plumbing Issue - Unit 204",
+    id: "99403",
+    title: "Lighting Fix & Bulbs Replacement",
     snippet: "Thanks for fixing the leak so quickly!",
     sender: "Maurice Maldonado",
     count: 2,
@@ -44,32 +44,77 @@ const MOCK_MESSAGES = [
   }
 ];
 
-const MOCK_CHAT_MESSAGES = [
-  {
-    id: 1,
-    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-    time: "6/5/2026, 1:47:10 PM",
-    senderName: "Maurice Maldonado",
-    initials: "MM",
-    isCurrentUser: false,
-  },
-  {
-    id: 2,
-    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-    time: "YOU • 10:46 AM",
-    senderName: "Karl Smith",
-    initials: "KS",
-    isCurrentUser: true,
-  },
-];
+interface ChatMessage {
+  id: string | number;
+  text: string;
+  time: string;
+  senderName: string;
+  initials: string;
+  isCurrentUser: boolean;
+  isNotice?: boolean;
+}
 
 export default function MessagesPage() {
-  const [selectedChatTitle, setSelectedChatTitle] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  // Load chat messages when selectedChatId changes
+  useEffect(() => {
+    if (!selectedChatId) return;
+    const chatKey = `servicelink_chat_${selectedChatId}`;
+    try {
+      const stored = localStorage.getItem(chatKey);
+      if (stored) {
+        setChatMessages(JSON.parse(stored));
+      } else {
+        const defaults = [
+          {
+            id: 1,
+            text: "I have scheduled the repair for tomorrow morning at 9 AM.",
+            time: "6/5/2026, 1:47:10 PM",
+            senderName: "Maurice Maldonado",
+            initials: "MM",
+            isCurrentUser: false,
+          },
+          {
+            id: 2,
+            text: "I have scheduled the repair for tomorrow morning at 9 AM.",
+            time: "YOU • 10:46 AM",
+            senderName: "Karl Smith",
+            initials: "KS",
+            isCurrentUser: true,
+          }
+        ];
+        setChatMessages(defaults);
+        localStorage.setItem(chatKey, JSON.stringify(defaults));
+      }
+    } catch { }
+  }, [selectedChatId]);
+
+  const handleSendMessage = (text: string) => {
+    if (!selectedChatId) return;
+    const chatKey = `servicelink_chat_${selectedChatId}`;
+    const newMsg = {
+      id: Date.now(),
+      text: text,
+      time: `YOU • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      senderName: "Karl Smith",
+      initials: "KS",
+      isCurrentUser: true,
+    };
+    const updated = [...chatMessages, newMsg];
+    setChatMessages(updated);
+    try {
+      localStorage.setItem(chatKey, JSON.stringify(updated));
+    } catch { }
+  };
+
+  const activeConv = MOCK_MESSAGES.find((c) => Number(c.id) === selectedChatId);
 
   return (
     <TechnicianLayout title="Messages" subtitle="Communicate with team members about work requests">
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-w-5xl">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-w-7xl">
 
         {/* Red Title Banner */}
         <div className="bg-[#D12031] px-6 py-5">
@@ -82,7 +127,7 @@ export default function MessagesPage() {
           {MOCK_MESSAGES.map((msg) => (
             <div
               key={msg.id}
-              onClick={() => setSelectedChatTitle(msg.title)}
+              onClick={() => setSelectedChatId(Number(msg.id))}
               className={`bg-white border rounded-xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4 cursor-pointer hover:shadow-md transition-shadow ${msg.isNew ? "border-[#D12031] border-l-[4px]" : "border-gray-200"
                 }`}
             >
@@ -109,11 +154,11 @@ export default function MessagesPage() {
       </div>
 
       <ChatModal
-        isOpen={selectedChatTitle !== null}
-        onClose={() => setSelectedChatTitle(null)}
-        chatTitle={selectedChatTitle || "Chat with John Doe"}
-        messages={MOCK_CHAT_MESSAGES}
-        onSendMessage={(text) => console.log("Technician sent:", text)}
+        isOpen={selectedChatId !== null}
+        onClose={() => setSelectedChatId(null)}
+        chatTitle={activeConv ? `Chat with ${activeConv.sender}` : "Chat"}
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
       />
 
     </TechnicianLayout>

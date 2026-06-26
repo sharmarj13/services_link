@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   FiSearch,
@@ -10,6 +10,16 @@ import {
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
 import FilterModal from "@/components/FilterModal";
+
+interface Notice {
+  jobId: string;
+  noticeType: string;
+  priority: string;
+  description: string;
+  actionRequired: boolean;
+  date: string;
+  time: string;
+}
 
 interface JobRequest {
   id: string;
@@ -112,6 +122,37 @@ export default function WorkRequestsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [jobsList] = useState<JobRequest[]>(JOBS_DATA);
+  const [notices, setNotices] = useState<Notice[]>([]);
+
+  useEffect(() => {
+    try {
+      let storedNotices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
+      if (storedNotices.length === 0) {
+        storedNotices = [
+          {
+            jobId: "99410",
+            noticeType: "Maintenance Issue",
+            priority: "High",
+            description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
+            actionRequired: true,
+            date: "Jun 24, 2026",
+            time: "11:30 AM"
+          },
+          {
+            jobId: "99411",
+            noticeType: "Safety Hazard",
+            priority: "Urgent",
+            description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
+            actionRequired: true,
+            date: "Jun 25, 2026",
+            time: "09:45 AM"
+          }
+        ];
+        localStorage.setItem("servicelink_notices", JSON.stringify(storedNotices));
+      }
+      setNotices(storedNotices);
+    } catch {}
+  }, []);
 
   const handleStartJob = (id: string) => {
     // update state to simulate job start
@@ -253,6 +294,11 @@ export default function WorkRequestsPage() {
                       </span>
                     </div>
                     <p className="text-[12px] text-gray-500 mt-2 font-medium">{job.location} • ID #{job.id}</p>
+                    {job.status === "Completed" && notices.some((n: Notice) => n.jobId === job.id) && (
+                      <div className="mt-3 text-[11px] font-bold text-[#D12031] bg-red-50 border border-red-200/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1 w-fit">
+                        Notice & Notify Applied
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions / Status */}
