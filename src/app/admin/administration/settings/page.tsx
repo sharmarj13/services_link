@@ -128,7 +128,7 @@ export default function AdministrationSettingsPage() {
       if (current) {
         try {
           currentAdminId = JSON.parse(current).id;
-        } catch {}
+        } catch { }
       }
     }
     if (id === currentAdminId || id === "1") {
@@ -175,8 +175,8 @@ export default function AdministrationSettingsPage() {
       title="Administration Configuration"
       subtitle="Register business accounts, delegate super admin permissions, and modify roles"
     >
-      <div className="max-w-7xl pb-10 space-y-8 animate-[fadeIn_0.3s_ease]">
-        
+      <div className="max-w-7xl pb-2 space-y-8 animate-[fadeIn_0.3s_ease]">
+
         {/* Row 1: Register Super Admins & View list */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Create Super Admin Form */}
@@ -187,7 +187,7 @@ export default function AdministrationSettingsPage() {
                 <h3 className="text-sm font-bold text-gray-900">Provision Super Admin Account</h3>
               </div>
               <p className="text-[11px] text-gray-400 font-semibold mb-5">Create accounts to help manage operations and dispatching tasks.</p>
-              
+
               <form onSubmit={handleAddAdminSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -468,21 +468,19 @@ export default function AdministrationSettingsPage() {
                   </span>
                   <span className="text-xs font-semibold text-gray-800">{p.desc}</span>
                 </div>
-                
+
                 {/* Switch indicator */}
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] font-bold ${p.enabled ? "text-emerald-600" : "text-gray-400"}`}>
                     {p.enabled ? "Active" : "Disabled"}
                   </span>
                   <div
-                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${
-                      p.enabled ? "bg-emerald-500" : "bg-gray-300"
-                    }`}
+                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${p.enabled ? "bg-emerald-500" : "bg-gray-300"
+                      }`}
                   >
                     <div
-                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
-                        p.enabled ? "translate-x-4.5" : "translate-x-0"
-                      }`}
+                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${p.enabled ? "translate-x-4.5" : "translate-x-0"
+                        }`}
                     />
                   </div>
                 </div>

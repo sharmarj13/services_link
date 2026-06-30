@@ -61,7 +61,7 @@ export default function AdminOverviewPage() {
       title="Dashboard"
       subtitle="Comprehensive dashboard and real-time operations overview"
     >
-      <div className="max-w-7xl pb-10 space-y-8 animate-[fadeIn_0.3s_ease]">
+      <div className="max-w-7xl pb-2 space-y-8 animate-[fadeIn_0.3s_ease]">
 
         {/* 📅 Date/Time Filter Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">

@@ -44,7 +44,7 @@ export default function CustomerOverviewPage() {
   useEffect(() => {
     try {
       const stored: CustomerRequestDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      
+
       const INITIAL_OVERVIEW_DATA = [
         {
           id: "99402",
@@ -72,12 +72,12 @@ export default function CustomerOverviewPage() {
             r.priority === "High"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
               : r.priority === "Medium"
-              ? "bg-lime-50 text-lime-700 border-lime-200"
-              : "bg-amber-50 text-amber-700 border-amber-200",
+                ? "bg-lime-50 text-lime-700 border-lime-200"
+                : "bg-amber-50 text-amber-700 border-amber-200",
         }));
 
         const storedMap = new Map(mapped.map((item) => [item.id, item]));
-        
+
         const mergedList = INITIAL_OVERVIEW_DATA.map((job) => {
           if (storedMap.has(job.id)) {
             const edited = storedMap.get(job.id)!;
@@ -107,7 +107,7 @@ export default function CustomerOverviewPage() {
 
         const is99402Completed = stored.some((r: CustomerRequestDetail) => r.id === "99402" && r.status === "Completed");
         const is99408Completed = stored.some((r: CustomerRequestDetail) => r.id === "99408" && r.status === "Completed");
-        
+
         let baseAssigned = 2;
         if (is99402Completed) baseAssigned--;
         if (is99408Completed) baseAssigned--;
@@ -115,7 +115,7 @@ export default function CustomerOverviewPage() {
         setAssignedCount(baseAssigned + extraAssigned);
         setCompletedCount(8 + extraCompleted);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const handleModalSubmit = (fullDetail: CustomerRequestDetail) => {
@@ -128,8 +128,8 @@ export default function CustomerOverviewPage() {
         fullDetail.priority === "High"
           ? "bg-emerald-50 text-emerald-700 border-emerald-200"
           : fullDetail.priority === "Medium"
-          ? "bg-lime-50 text-lime-700 border-lime-200"
-          : "bg-amber-50 text-amber-700 border-amber-200",
+            ? "bg-lime-50 text-lime-700 border-lime-200"
+            : "bg-amber-50 text-amber-700 border-amber-200",
     };
     setRequestsList((prev) => [newReq, ...prev]);
     setAssignedCount((prev) => prev + 1);
@@ -142,8 +142,8 @@ export default function CustomerOverviewPage() {
       title="Work Overview"
       subtitle="Track all completed and ongoing work at your site"
     >
-      <div className="max-w-7xl pb-10 space-y-10">
-        
+      <div className="max-w-7xl pb-2 space-y-10">
+
         {/* 📊 Completed / Assigned Request Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Completed Requests */}
@@ -347,7 +347,7 @@ export default function CustomerOverviewPage() {
               <div className="pt-2 pb-6 px-4 sm:px-12">
                 <div className="relative">
                   <div className="absolute top-[17px] left-[12.5%] right-[12.5%] h-[3px] bg-gray-200 -translate-y-1/2 z-0 rounded" />
-                  
+
                   {/* Progress Line (50% filled since 2 of 4 steps are complete) */}
                   <div
                     className="absolute top-[17px] left-[12.5%] h-[3px] bg-[#D12031] -translate-y-1/2 z-0 rounded transition-all duration-300"
@@ -360,17 +360,15 @@ export default function CustomerOverviewPage() {
                       return (
                         <div key={label} className="flex flex-col items-center select-none w-1/4 relative">
                           <div
-                            className={`w-[34px] h-[34px] rounded-full flex items-center justify-center outline-none z-10 ${
-                              completed ? "bg-[#D12031] text-white" : "bg-gray-200 text-gray-400"
-                            }`}
+                            className={`w-[34px] h-[34px] rounded-full flex items-center justify-center outline-none z-10 ${completed ? "bg-[#D12031] text-white" : "bg-gray-200 text-gray-400"
+                              }`}
                           >
                             {completed ? <FiCheck size={18} strokeWidth={3} /> : <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />}
                           </div>
 
                           <span
-                            className={`text-xs sm:text-[13px] font-bold mt-4 text-center ${
-                              completed ? "text-gray-800" : "text-gray-400"
-                            }`}
+                            className={`text-xs sm:text-[13px] font-bold mt-4 text-center ${completed ? "text-gray-800" : "text-gray-400"
+                              }`}
                           >
                             {label}
                           </span>

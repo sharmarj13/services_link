@@ -53,8 +53,8 @@ export default function AdminNoticeNotifyPage() {
       title="Notice & Notify Board"
       subtitle="Review safety filings, technician issue notices, and customer alerts"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
-        
+      <div className="max-w-7xl pb-2 space-y-6">
+
         {/* Search & Filters */}
         <div className="bg-white p-4.5 rounded-2xl border border-gray-200 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative w-full md:max-w-xs">
@@ -135,13 +135,12 @@ export default function AdminNoticeNotifyPage() {
                     <div className="border-t border-gray-100 pt-4 mt-2 flex items-center justify-between">
                       <div className="text-[10px] text-gray-500 font-bold">
                         Filed by: <span className="text-[#D12031]">{notice.senderName}</span> ({notice.senderType})
-                        <span className={`block mt-1 font-bold ${
-                          notice.status === "Approved"
+                        <span className={`block mt-1 font-bold ${notice.status === "Approved"
                             ? "text-emerald-600"
                             : notice.status === "Rejected"
-                            ? "text-rose-600"
-                            : "text-amber-500"
-                        }`}>
+                              ? "text-rose-600"
+                              : "text-amber-500"
+                          }`}>
                           Status: {notice.status}
                         </span>
                       </div>

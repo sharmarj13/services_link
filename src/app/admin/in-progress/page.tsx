@@ -96,7 +96,7 @@ export default function AdminInProgressPage() {
       title="Assigned Jobs"
       subtitle="Monitor status, active technician workflows, and project stage milestones"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
+      <div className="max-w-7xl pb-2 space-y-6">
 
         {/* Search & filter bar */}
         <div className="bg-white p-4.5 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -149,8 +149,8 @@ export default function AdminInProgressPage() {
                       <h4 className="text-[15px] font-bold text-gray-950">{job.title}</h4>
                       <span
                         className={`text-[8.5px] font-black px-2 py-0.5 rounded-md border ${job.priority === "High"
-                            ? "bg-red-50 text-[#D12031] border-red-100"
-                            : "bg-amber-50 text-amber-700 border-amber-100"
+                          ? "bg-red-50 text-[#D12031] border-red-100"
+                          : "bg-amber-50 text-amber-700 border-amber-100"
                           }`}
                       >
                         {job.priority}
@@ -202,8 +202,8 @@ export default function AdminInProgressPage() {
                           <div key={label} className="flex flex-col items-center select-none w-1/3 relative">
                             <div
                               className={`w-7.5 h-7.5 rounded-full flex items-center justify-center outline-none z-10 transition-colors duration-300 ${isCompleted
-                                  ? "bg-[#D12031] text-white"
-                                  : "bg-gray-200 text-gray-400"
+                                ? "bg-[#D12031] text-white"
+                                : "bg-gray-200 text-gray-400"
                                 } ${isCurrent ? "ring-4 ring-red-100" : ""}`}
                             >
                               {isCompleted ? (

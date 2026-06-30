@@ -244,7 +244,7 @@ export default function CustomerRequestDetailPage() {
         existing.unshift(updated);
       }
       localStorage.setItem("customerRequests", JSON.stringify(existing));
-    } catch {}
+    } catch { }
 
     setIsEditModalOpen(false);
     showToast("Work request updated successfully!");
@@ -286,7 +286,7 @@ export default function CustomerRequestDetailPage() {
       } else {
         setNotice(null);
       }
-    } catch {}
+    } catch { }
 
     // 1️⃣ Check localStorage first (user-created requests)
     try {
@@ -296,7 +296,7 @@ export default function CustomerRequestDetailPage() {
         setJob(found);
         return;
       }
-    } catch {}
+    } catch { }
 
     // 2️⃣ Fall back to HARDCODED_JOBS or DEFAULT_JOB_DETAIL for demo/hardcoded IDs
     const hardcoded = HARDCODED_JOBS[id];
@@ -732,7 +732,7 @@ export default function CustomerRequestDetailPage() {
               {notice && (
                 <div className="bg-red-50 border border-red-200 rounded-2xl shadow-sm p-6 relative overflow-hidden mt-6">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-red-100/30 rounded-full blur-2xl pointer-events-none" />
-                  
+
                   <div className="flex items-center gap-2 mb-4">
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-[#D12031]">
                       <FiAlertCircle size={15} />
@@ -757,10 +757,10 @@ export default function CustomerRequestDetailPage() {
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Reported On</p>
                       <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.date} at {notice.time}</p>
                     </div>
-                    <div>
+                    {/* <div>
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Action Required</p>
                       <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.actionRequired ? "Yes (Authorization Needed)" : "No"}</p>
-                    </div>
+                    </div> */}
                   </div>
 
                   <div className="border-t border-red-150/40 pt-4">
@@ -885,39 +885,36 @@ export default function CustomerRequestDetailPage() {
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
-                          job.status === "In-Progress" ||
-                          job.status === "Completed"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${job.status === "In-Progress" ||
+                            job.status === "Completed"
                             ? "bg-[#D12031]"
                             : "bg-gray-200"
-                        }`}
+                          }`}
                       >
                         <FiClock
                           size={15}
                           className={
                             job.status === "In-Progress" ||
-                            job.status === "Completed"
+                              job.status === "Completed"
                               ? "text-white"
                               : "text-gray-400"
                           }
                         />
                       </div>
                       <div
-                        className={`w-0.5 h-8 ${
-                          job.status === "Completed"
+                        className={`w-0.5 h-8 ${job.status === "Completed"
                             ? "bg-[#D12031]"
                             : "bg-gray-200"
-                        }`}
+                          }`}
                       />
                     </div>
                     <div className="pt-1">
                       <p
-                        className={`text-[12px] font-bold ${
-                          job.status === "In-Progress" ||
-                          job.status === "Completed"
+                        className={`text-[12px] font-bold ${job.status === "In-Progress" ||
+                            job.status === "Completed"
                             ? "text-[#D12031]"
                             : "text-gray-400"
-                        }`}
+                          }`}
                       >
                         In-Progress
                       </p>
@@ -931,11 +928,10 @@ export default function CustomerRequestDetailPage() {
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
-                          job.status === "Completed"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${job.status === "Completed"
                             ? "bg-[#D12031]"
                             : "bg-gray-200"
-                        }`}
+                          }`}
                       >
                         <FiCheckCircle
                           size={15}
@@ -949,11 +945,10 @@ export default function CustomerRequestDetailPage() {
                     </div>
                     <div className="pt-1">
                       <p
-                        className={`text-[12px] font-bold ${
-                          job.status === "Completed"
+                        className={`text-[12px] font-bold ${job.status === "Completed"
                             ? "text-[#D12031]"
                             : "text-gray-400"
-                        }`}
+                          }`}
                       >
                         Completed
                       </p>
@@ -1164,7 +1159,7 @@ export default function CustomerRequestDetailPage() {
                       const existing: JobDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
                       const updatedList = existing.filter((r: JobDetail) => r.id !== job.id);
                       localStorage.setItem("customerRequests", JSON.stringify(updatedList));
-                    } catch {}
+                    } catch { }
                     setShowDeleteModal(false);
                     router.push("/customer/requests");
                   }}

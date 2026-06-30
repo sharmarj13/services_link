@@ -88,8 +88,8 @@ export default function AdminNotificationsPage() {
       title="System Notifications"
       subtitle="Track real-time activities, alerts, and pending notice filings"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
-        
+      <div className="max-w-7xl pb-2 space-y-6">
+
         {/* Header toolbar */}
         {unreadNotifs.length > 0 && (
           <div className="flex justify-end">
@@ -112,7 +112,7 @@ export default function AdminNotificationsPage() {
               </span>
             )}
           </h3>
-          
+
           <div className="space-y-3">
             {unreadNotifs.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-xs font-semibold">
@@ -150,7 +150,7 @@ export default function AdminNotificationsPage() {
         {/* Read Section */}
         <div className="space-y-4 pt-4">
           <h3 className="text-sm font-bold text-gray-950">Cleared Notifications</h3>
-          
+
           <div className="space-y-3">
             {readNotifs.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-450 text-xs font-semibold">

@@ -58,7 +58,7 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="Manage your account settings and preferences"
     >
-      <div className="max-w-7xl space-y-6 sm:space-y-8 pb-10">
+      <div className="max-w-7xl space-y-6 sm:space-y-8 ">
 
         {/* Profile Information */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">

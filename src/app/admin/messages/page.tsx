@@ -92,11 +92,11 @@ export default function AdminMessagesPage() {
     const updated = convList.map((c) =>
       c.id === activeConv.id
         ? {
-            ...c,
-            messages: [...c.messages, newMsg],
-            preview: `Admin joined: ${text}`,
-            messageCount: c.messageCount + 1,
-          }
+          ...c,
+          messages: [...c.messages, newMsg],
+          preview: `Admin joined: ${text}`,
+          messageCount: c.messageCount + 1,
+        }
         : c
     );
 
@@ -113,8 +113,8 @@ export default function AdminMessagesPage() {
       title="Live Channels & Messages"
       subtitle="Supervise client-technician dialogs and join any active support ticket"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
-        
+      <div className="max-w-7xl pb-2 space-y-6">
+
         {/* Main Card */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Red Header Banner */}
@@ -137,9 +137,8 @@ export default function AdminMessagesPage() {
               <div
                 key={conv.id}
                 onClick={() => setActiveConv(conv)}
-                className={`flex items-start justify-between px-6 py-5 cursor-pointer transition-colors hover:bg-gray-50/50 ${
-                  conv.badge === "New" ? "bg-red-50/10 border-l-4 border-l-[#D12031]" : ""
-                }`}
+                className={`flex items-start justify-between px-6 py-5 cursor-pointer transition-colors hover:bg-gray-50/50 ${conv.badge === "New" ? "bg-red-50/10 border-l-4 border-l-[#D12031]" : ""
+                  }`}
               >
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-2.5 mb-1.5">
@@ -148,11 +147,10 @@ export default function AdminMessagesPage() {
                     </h3>
                     {conv.badge && (
                       <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
-                          conv.badge === "New"
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${conv.badge === "New"
                             ? "bg-red-50 text-[#D12031] border border-red-100"
                             : "bg-blue-50 text-blue-700 border border-blue-100"
-                        }`}
+                          }`}
                       >
                         {conv.badge}
                       </span>
@@ -174,7 +172,7 @@ export default function AdminMessagesPage() {
                     <span className="text-gray-400">({conv.messageCount} Messages)</span>
                   </div>
                 </div>
-                
+
                 <span className="text-[11px] text-gray-400 font-bold shrink-0 pt-0.5">
                   {conv.date}
                 </span>

@@ -207,7 +207,7 @@ export default function JobDetailPage() {
         } else {
           setNotice(null);
         }
-      } catch {}
+      } catch { }
 
       const found = MOCK_JOBS_DETAILS[params.id];
       if (found) {
@@ -364,7 +364,7 @@ export default function JobDetailPage() {
               {notice && (
                 <div className="bg-red-50 border border-red-200 rounded-2xl shadow-sm p-6 relative overflow-hidden mt-6">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-red-100/30 rounded-full blur-2xl pointer-events-none" />
-                  
+
                   <div className="flex items-center gap-2 mb-4">
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-[#D12031]">
                       <FiAlertCircle size={15} />
@@ -389,10 +389,10 @@ export default function JobDetailPage() {
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Reported On</p>
                       <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.date} at {notice.time}</p>
                     </div>
-                    <div>
+                    {/* <div>
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Action Required</p>
                       <p className="text-[13.5px] font-semibold text-gray-800 mt-1">{notice.actionRequired ? "Yes (Authorization Needed)" : "No"}</p>
-                    </div>
+                    </div> */}
                   </div>
 
                   <div className="border-t border-red-150/40 pt-4">
@@ -586,8 +586,8 @@ export default function JobDetailPage() {
                   onClick={handleStartJob}
                   disabled={isStarted}
                   className={`w-full py-3.5 rounded-lg text-white font-bold text-[14px] shadow-sm transition-all text-center ${isStarted
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#D12031] hover:bg-[#a81828]"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#D12031] hover:bg-[#a81828]"
                     }`}
                 >
                   {isStarted ? "Job in Progress" : "Start Job"}

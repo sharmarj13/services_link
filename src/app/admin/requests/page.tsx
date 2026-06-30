@@ -47,7 +47,7 @@ export default function AdminRequestsPage() {
               return { ...r, status: s };
             });
           }
-        } catch {}
+        } catch { }
       }
     }
     return [
@@ -318,7 +318,7 @@ export default function AdminRequestsPage() {
       title="My Request Management"
       subtitle="Create, edit, dispatch, and manage all facility work requests"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
+      <div className="max-w-7xl pb-2 space-y-6">
 
         {/* 🔍 Search & Filters Bar */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -447,11 +447,10 @@ export default function AdminRequestsPage() {
                     <select
                       value={req.assignedTechnician || "Unassigned"}
                       onChange={(e) => handleQuickAssign(req.id, e.target.value)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg outline-none cursor-pointer focus:border-[#D12031] border ${
-                        req.assignedTechnician && req.assignedTechnician !== "Unassigned"
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg outline-none cursor-pointer focus:border-[#D12031] border ${req.assignedTechnician && req.assignedTechnician !== "Unassigned"
                           ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                           : "bg-amber-50 text-amber-800 border-amber-200"
-                      }`}
+                        }`}
                       title="Quick Assign Technician"
                     >
                       <option value="Unassigned">Assign Tech...</option>

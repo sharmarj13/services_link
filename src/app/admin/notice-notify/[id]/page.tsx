@@ -177,8 +177,8 @@ export default function AdminNoticeDetailPage() {
       title={`Notice Review #${notice.id}`}
       subtitle="Examine safety notifications and view lifecycle details with custom resolutions"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
-        
+      <div className="max-w-7xl pb-2 space-y-6">
+
         {/* Back Link */}
         <button
           onClick={() => router.push("/admin/notice-notify")}
@@ -196,15 +196,14 @@ export default function AdminNoticeDetailPage() {
               <FiRotateCcw size={17} />
               <h3 className="text-sm font-bold tracking-wide">Notice Filing History</h3>
             </div>
-            
+
             <span
-              className={`px-3 py-1 rounded-full text-[10px] font-black border ${
-                notice.status === "Approved"
+              className={`px-3 py-1 rounded-full text-[10px] font-black border ${notice.status === "Approved"
                   ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                   : notice.status === "Rejected"
-                  ? "bg-rose-50 text-rose-700 border-rose-100"
-                  : "bg-amber-50 text-amber-700 border-amber-100"
-              }`}
+                    ? "bg-rose-50 text-rose-700 border-rose-100"
+                    : "bg-amber-50 text-amber-700 border-amber-100"
+                }`}
             >
               {notice.status}
             </span>
@@ -246,13 +245,13 @@ export default function AdminNoticeDetailPage() {
             {notice.evidencePhotos && notice.evidencePhotos.length > 0 && (
               <div>
                 <h4 className="text-xs font-bold text-gray-900 mb-3">Submitted Evidence Photos</h4>
-                
+
                 <div className="flex flex-wrap gap-3">
                   {notice.evidencePhotos.map((src, i) => (
                     <div key={i} className="relative w-28 h-20 rounded-xl overflow-hidden border border-gray-200">
                       <Image src={src} alt="Evidence" fill className="object-cover" />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] py-0.5 text-center font-bold">
-                        Attachment_{i+1}.jpg
+                        Attachment_{i + 1}.jpg
                       </div>
                     </div>
                   ))}
@@ -305,9 +304,8 @@ export default function AdminNoticeDetailPage() {
                     </div>
                     <div className="flex justify-between">
                       <span>Action Status:</span>
-                      <span className={`font-bold ${
-                        notice.status === "Approved" ? "text-emerald-600" : notice.status === "Rejected" ? "text-rose-600" : "text-amber-600"
-                      }`}>{notice.status}</span>
+                      <span className={`font-bold ${notice.status === "Approved" ? "text-emerald-600" : notice.status === "Rejected" ? "text-rose-600" : "text-amber-600"
+                        }`}>{notice.status}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Verification Date:</span>

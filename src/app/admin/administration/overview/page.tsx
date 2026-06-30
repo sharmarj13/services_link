@@ -10,8 +10,8 @@ export default function AdministrationOverviewPage() {
       title="Administration Overview"
       subtitle="Overview of system-wide users, registered sites, and platform telemetry"
     >
-      <div className="max-w-7xl pb-10 space-y-8 animate-[fadeIn_0.3s_ease]">
-        
+      <div className="max-w-7xl pb-2 space-y-8 animate-[fadeIn_0.3s_ease]">
+
         {/* 📊 Administration Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Card 1: Total Users */}

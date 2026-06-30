@@ -77,7 +77,7 @@ export default function NotificationsListPage() {
       title="Notifications"
       subtitle="Manage your Notifications"
     >
-      <div className="max-w-7xl pb-10">
+      <div className="max-w-7xl pb-2">
 
         {/* Unread Section */}
         <div className="mb-8">

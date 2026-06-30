@@ -165,7 +165,7 @@ export default function AdministrationSitesPage() {
       title="Registered Facility Sites"
       subtitle="Register, update, and manage operational sites A-E and client headcounts"
     >
-      <div className="max-w-7xl pb-10 space-y-6">
+      <div className="max-w-7xl pb-2 space-y-6">
 
         {/* Actions header */}
         <div className="flex justify-end">
