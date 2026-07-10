@@ -238,7 +238,7 @@ export default function NoticeDetailPage() {
             </div>
 
             {/* Approval card */}
-            <div className="border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+            <div className="border border-gray-200 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               {/* Left – summary text */}
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-gray-900 mb-1">
@@ -250,7 +250,7 @@ export default function NoticeDetailPage() {
               </div>
 
               {/* Right – action buttons */}
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-end sm:justify-start">
                 <button
                   onClick={() => setApprovalStatus("rejected")}
                   className={`px-5 py-2.5 rounded-xl font-bold text-[13px] border-2 transition-colors cursor-pointer ${

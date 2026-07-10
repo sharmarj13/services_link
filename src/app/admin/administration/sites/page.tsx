@@ -39,7 +39,14 @@ export default function AdministrationSitesPage() {
       const saved = localStorage.getItem("servicelink_sites");
       if (saved) {
         try {
-          setSites(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === 5) {
+            setSites(parsed);
+          } else {
+            // Load 5 default static sites if stored list has a different size
+            setSites(DEFAULT_SITES);
+            localStorage.setItem("servicelink_sites", JSON.stringify(DEFAULT_SITES));
+          }
         } catch {
           setSites(DEFAULT_SITES);
         }
@@ -65,6 +72,14 @@ export default function AdministrationSitesPage() {
   const [formDepartment, setFormDepartment] = useState("");
 
   const [toastMsg, setToastMsg] = useState("");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  const totalPages = Math.ceil(sites.length / itemsPerPage);
+  const activePage = Math.min(currentPage, totalPages || 1);
+  const displayedSites = sites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -198,66 +213,220 @@ export default function AdministrationSitesPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {sites.map((site) => (
-              <div
-                key={site.id}
-                className="bg-white border border-gray-200 rounded-2xl shadow-xs p-5 flex flex-col justify-between hover:shadow-md transition-shadow relative"
-              >
-                <div>
-                  <div className="flex justify-between items-start gap-3 mb-3.5">
-                    <h3 className="text-[15px] font-black text-gray-900 leading-tight">{site.name}</h3>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
+            {/* Table Header Banner */}
+            <div className="bg-[#D12031] px-6 py-5 text-white flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h3 className="text-[16px] font-bold tracking-wide">Facility Footprints & Assignments</h3>
+                <p className="text-[11.5px] text-white/90 font-medium mt-0.5">
+                  Operational status, department tags, technician logs, and customer headcounts
+                </p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-xs px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-black self-start sm:self-auto uppercase tracking-wider">
+                Total Sites: {sites.length}
+              </div>
+            </div>
+
+            {/* Mobile View (Stacked Cards) */}
+            <div className="block md:hidden p-4 space-y-4 bg-gray-50/50">
+              {sites.map((site) => (
+                <div
+                  key={site.id}
+                  className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative hover:shadow-sm transition-all"
+                >
+                  <div className="flex justify-between items-start gap-2 mb-3.5">
+                    <div>
+                      <span className="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider block">
+                        {site.department}
+                      </span>
+                      <h4 className="text-[14px] font-black text-gray-900 leading-tight mt-0.5">
+                        {site.name}
+                      </h4>
+                    </div>
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border ${site.status === "Operational"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                        : site.status === "Maintenance"
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
+                        site.status === "Operational"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          : site.status === "Maintenance"
                           ? "bg-amber-50 text-amber-700 border-amber-100"
                           : "bg-red-50 text-[#D12031] border-red-100"
-                        }`}
+                      }`}
                     >
                       {site.status}
                     </span>
                   </div>
 
-                  <div className="space-y-2.5 mb-6 text-xs text-gray-500 font-semibold">
-                    <p className="flex items-center gap-1.5">
-                      <FiMapPin className="text-gray-400 shrink-0" size={14} />
-                      <span className="truncate">{site.address}</span>
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <FiBriefcase className="text-gray-400 shrink-0" size={14} />
-                      <span>Department: <span className="font-bold text-gray-700">{site.department}</span></span>
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <FiUser className="text-gray-400 shrink-0" size={14} />
-                      <span>Technician: <span className="font-bold text-gray-700">{site.technician}</span></span>
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <FiUsers className="text-gray-400 shrink-0" size={14} />
-                      <span>User: <span className="font-bold text-gray-700">{site.user}</span></span>
-                    </p>
+                  <div className="space-y-3 text-xs font-semibold text-gray-500 mb-4 border-t border-gray-100 pt-3">
+                    <div className="flex items-center gap-1.5">
+                      <FiMapPin className="text-gray-400 shrink-0" size={13} />
+                      <span className="text-gray-700 truncate">{site.address}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-150">
+                      <div>
+                        <span className="text-[9px] text-gray-400 uppercase block font-extrabold tracking-wider">
+                          Technician
+                        </span>
+                        <span className="text-gray-800 font-bold text-[11px] block mt-0.5 truncate">
+                          {site.technician}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-gray-400 uppercase block font-extrabold tracking-wider">
+                          User Assignment
+                        </span>
+                        <span className="text-gray-800 font-bold text-[11px] block mt-0.5 truncate">
+                          {site.user}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-gray-100 pt-3.5">
+                    <button
+                      onClick={() => handleOpenEditModal(site)}
+                      className="flex items-center justify-center gap-1 px-3 py-2 hover:bg-gray-100 rounded-lg text-gray-650 font-bold text-[11px] cursor-pointer transition-colors border-none"
+                    >
+                      <FiEdit size={12} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(site)}
+                      className="flex items-center justify-center gap-1 px-3 py-2 hover:bg-red-50 rounded-lg text-[#D12031] font-bold text-[11px] cursor-pointer transition-colors border-none"
+                    >
+                      <FiTrash2 size={12} />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                {/* Action buttons footer */}
-                <div className="border-t border-gray-100 pt-3.5 flex justify-end gap-1.5">
+            {/* Desktop View (Table) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 text-[10.5px] font-black uppercase tracking-wider border-b border-gray-150">
+                    <th className="py-4.5 px-6">Site Name & Dept</th>
+                    <th className="py-4.5 px-6">Location Address</th>
+                    <th className="py-4.5 px-6">Technician Assigned</th>
+                    <th className="py-4.5 px-6">User Assignment</th>
+                    <th className="py-4.5 px-6 text-center">Status</th>
+                    <th className="py-4.5 px-6 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-150 text-[13px] text-gray-700 font-semibold">
+                  {displayedSites.map((site) => (
+                    <tr
+                      key={site.id}
+                      className="hover:bg-gray-55/40 transition-colors duration-150"
+                    >
+                      <td className="py-4 px-6">
+                        <div>
+                          <span className="font-black text-gray-900 block text-[14px] leading-tight">
+                            {site.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-extrabold block mt-1 uppercase tracking-wider">
+                            {site.department}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-1.5 text-gray-500 max-w-[200px] xl:max-w-[260px]">
+                          <FiMapPin className="text-gray-400 shrink-0" size={13} />
+                          <span className="truncate text-xs font-semibold" title={site.address}>
+                            {site.address}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-xs text-gray-500 font-semibold">
+                        <div className="flex items-center gap-1.5">
+                          <FiUser className="text-gray-450 shrink-0" size={13} />
+                          <span className="text-gray-800 font-bold">{site.technician}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-xs text-gray-500 font-semibold">
+                        <div className="flex items-center gap-1.5">
+                          <FiUsers className="text-gray-450 shrink-0" size={13} />
+                          <span className="text-gray-800 font-bold">{site.user}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
+                            site.status === "Operational"
+                              ? "bg-emerald-55/70 text-emerald-700 border-emerald-100"
+                              : site.status === "Maintenance"
+                              ? "bg-amber-55/70 text-amber-700 border-amber-100"
+                              : "bg-red-55/70 text-[#D12031] border-red-100"
+                          }`}
+                        >
+                          {site.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex justify-end items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(site)}
+                            className="p-2.5 hover:bg-gray-150 rounded-xl text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
+                            title="Edit Site Details"
+                          >
+                            <FiEdit size={14.5} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDeleteModal(site)}
+                            className="p-2.5 hover:bg-red-50 rounded-xl text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
+                            title="Delete Site"
+                          >
+                            <FiTrash2 size={14.5} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Desktop Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="hidden md:flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-150">
+                <span className="text-xs text-gray-500 font-semibold">
+                  Showing <span className="font-bold text-gray-900">{Math.min((activePage - 1) * itemsPerPage + 1, sites.length)}</span> to{" "}
+                  <span className="font-bold text-gray-900">{Math.min(activePage * itemsPerPage, sites.length)}</span> of{" "}
+                  <span className="font-bold text-gray-900">{sites.length}</span> sites
+                </span>
+                <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => handleOpenEditModal(site)}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
-                    title="Edit Site Details"
+                    disabled={activePage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    className="px-3.5 py-1.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-gray-50"
                   >
-                    <FiEdit size={14} />
+                    Previous
                   </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 flex items-center justify-center font-bold text-xs rounded-xl cursor-pointer transition-all ${
+                        activePage === pageNum
+                          ? "bg-[#D12031] text-white"
+                          : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-55"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
                   <button
-                    onClick={() => handleOpenDeleteModal(site)}
-                    className="p-2 hover:bg-red-50 rounded-lg text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
-                    title="Delete Site"
+                    disabled={activePage === totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    className="px-3.5 py-1.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-gray-50"
                   >
-                    <FiTrash2 size={14} />
+                    Next
                   </button>
                 </div>
               </div>
-            ))}
+            )}
           </div>
         )}
 

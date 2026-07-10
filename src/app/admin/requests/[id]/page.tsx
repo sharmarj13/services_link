@@ -19,8 +19,133 @@ import {
   FiClock,
   FiCheckCircle,
   FiArrowLeft,
+  FiAlertCircle,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+
+interface NoticeDetail {
+  id: string;
+  noticeType: string;
+  priority: "High" | "Medium" | "Low";
+  description: string;
+  evidencePhotos: string[];
+  approvalSummary: string;
+  sentDate: string;
+  sentTime: string;
+  senderName: string;
+  senderRole: string;
+  jobId: string;
+  status: "Pending" | "Approved" | "Rejected";
+  customerName: string;
+  customerSubmitDate: string;
+  customerSubmitTime: string;
+  technicianName: string;
+  technicianApproveDate: string;
+  technicianApproveTime: string;
+}
+
+const MOCK_NOTICES: NoticeDetail[] = [
+  {
+    id: "1",
+    noticeType: "Maintenance Issue",
+    priority: "High",
+    description: "HVAC compressor is experiencing severe temperature surges. Operation pressure exceeds safety limits by 15%. Direct inspection is required to prevent lock-out.",
+    evidencePhotos: ["/images/onbording-background.png", "/images/onbording-background.png"],
+    approvalSummary: "Pending admin assessment and dispatch routing.",
+    sentDate: "June 19, 2026",
+    sentTime: "10:15 AM",
+    senderName: "John Doe",
+    senderRole: "Technician",
+    jobId: "99402",
+    status: "Pending",
+    customerName: "Maurice Maldonado",
+    customerSubmitDate: "June 19, 2026",
+    customerSubmitTime: "10:15 AM",
+    technicianName: "John Doe",
+    technicianApproveDate: "Pending review",
+    technicianApproveTime: "Pending review",
+  },
+  {
+    id: "2",
+    noticeType: "Safety Concern",
+    priority: "Medium",
+    description: "Standing water observed in front of Main Lobby Restrooms. Slip risk is high. Janitorial team has been alerted, but warning signs must remain active.",
+    evidencePhotos: ["/images/onbording-background.png"],
+    approvalSummary: "Pending admin assessment.",
+    sentDate: "June 19, 2026",
+    sentTime: "08:30 AM",
+    senderName: "Maurice Maldonado",
+    senderRole: "Customer",
+    jobId: "99403",
+    status: "Pending",
+    customerName: "Alice Smith",
+    customerSubmitDate: "June 19, 2026",
+    customerSubmitTime: "08:30 AM",
+    technicianName: "Unassigned",
+    technicianApproveDate: "Pending review",
+    technicianApproveTime: "Pending review",
+  },
+  {
+    id: "3",
+    noticeType: "Maintenance Issue",
+    priority: "Low",
+    description: "Flickering overhead tubes in lobby section A. Non-critical maintenance request filed to swap fixtures.",
+    evidencePhotos: ["/images/onbording-background.png"],
+    approvalSummary: "Approved fixture change order. Scheduled with next dispatch rotation.",
+    sentDate: "June 15, 2026",
+    sentTime: "09:00 AM",
+    senderName: "Maurice Maldonado",
+    senderRole: "Customer",
+    jobId: "99411",
+    status: "Approved",
+    customerName: "Robert Brown",
+    customerSubmitDate: "June 15, 2026",
+    customerSubmitTime: "09:00 AM",
+    technicianName: "Sarah Connor",
+    technicianApproveDate: "June 15, 2026",
+    technicianApproveTime: "10:15 AM",
+  },
+  {
+    id: "4",
+    noticeType: "Maintenance Issue",
+    priority: "Medium",
+    description: "Corridor exit door lock is loose and fails to latch. Building security notified. Temporary lock-out tag placed.",
+    evidencePhotos: ["/images/onbording-background.png"],
+    approvalSummary: "Pending lock-out hardware authorization.",
+    sentDate: "June 18, 2026",
+    sentTime: "04:30 PM",
+    senderName: "Alex Mercer",
+    senderRole: "Technician",
+    jobId: "99415",
+    status: "Pending",
+    customerName: "Emma Wilson",
+    customerSubmitDate: "June 18, 2026",
+    customerSubmitTime: "04:30 PM",
+    technicianName: "Alex Mercer",
+    technicianApproveDate: "Pending review",
+    technicianApproveTime: "Pending review",
+  },
+  {
+    id: "5",
+    noticeType: "Emergency Alert",
+    priority: "High",
+    description: "Ventilation fan motor at Loading Dock B has failed completely, resulting in minor dust build-up. Urgent replacement needed.",
+    evidencePhotos: ["/images/onbording-background.png"],
+    approvalSummary: "Rejected. Request was duplicate of Work Order #99415.",
+    sentDate: "June 17, 2026",
+    sentTime: "01:20 PM",
+    senderName: "Alex Mercer",
+    senderRole: "Technician",
+    jobId: "99416",
+    status: "Rejected",
+    customerName: "Emma Wilson",
+    customerSubmitDate: "June 17, 2026",
+    customerSubmitTime: "01:20 PM",
+    technicianName: "Alex Mercer",
+    technicianApproveDate: "June 17, 2026",
+    technicianApproveTime: "02:00 PM",
+  },
+];
 
 interface JobDetail {
   id: string;
@@ -134,12 +259,17 @@ export default function AdminRequestDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [job, setJob] = useState<JobDetail>(DEFAULT_JOB_DETAIL);
+  const [notice, setNotice] = useState<NoticeDetail | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (params?.id) {
       const id = params.id as string;
       
+      // Look up notice for this jobId
+      const foundNotice = MOCK_NOTICES.find((n) => n.jobId === id);
+      setNotice(foundNotice || null);
+
       let loadedFromStorage = false;
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem("servicelink_requests");
@@ -614,6 +744,122 @@ export default function AdminRequestDetailPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Notice & Notify Details Card */}
+              {notice && (
+                <div className="bg-red-50/40 border border-red-200 rounded-2xl shadow-xs p-6 relative overflow-hidden mt-6 animate-[fadeIn_0.3s_ease]">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-red-100/30 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6.5 h-6.5 rounded-xl bg-red-150 text-[#D12031]">
+                        <FiAlertCircle size={15} />
+                      </span>
+                      <h3 className="text-[15px] font-black text-gray-900">
+                        Notice & Notify Details
+                      </h3>
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-wider ${
+                        notice.status === "Approved"
+                          ? "bg-emerald-55/70 text-emerald-700 border-emerald-100"
+                          : notice.status === "Rejected"
+                          ? "bg-rose-55/70 text-rose-700 border-rose-100"
+                          : "bg-amber-55/70 text-amber-700 border-amber-100"
+                      }`}
+                    >
+                      {notice.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 pb-5 border-b border-red-150/40 text-xs font-semibold text-gray-600">
+                    <div>
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">Notice Type</p>
+                      <p className="text-gray-800 font-bold mt-1 text-[13px]">{notice.noticeType}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">Priority Level</p>
+                      <p className="text-gray-800 font-bold mt-1 text-[13px]">{notice.priority}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">Reported By</p>
+                      <p className="text-gray-800 font-bold mt-1 text-[13px]">{notice.senderName} ({notice.senderRole})</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">Filing Time</p>
+                      <p className="text-gray-800 font-bold mt-1 text-[13px]">{notice.sentDate} at {notice.sentTime}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 text-xs font-semibold">
+                    <div>
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">Detailed Description</p>
+                      <p className="text-gray-700 leading-relaxed font-semibold mt-1.5 text-[13px]">
+                        {notice.description}
+                      </p>
+                    </div>
+
+                    {/* Evidence Photos */}
+                    {notice.evidencePhotos && notice.evidencePhotos.length > 0 && (
+                      <div className="border-t border-red-150/30 pt-4">
+                        <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider mb-2.5">Submitted Evidence Photos</p>
+                        <div className="flex flex-wrap gap-3">
+                          {notice.evidencePhotos.map((src, i) => (
+                            <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-xs bg-white">
+                              <Image src={src} alt="Evidence Attachment" fill className="object-cover" />
+                              <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white py-0.5 text-center font-bold">
+                                Attachment_{i + 1}.jpg
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notice Lifecycle Telemetry */}
+                    <div className="border-t border-red-150/30 pt-4">
+                      <p className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider mb-3">Notice Lifecycle Details</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Customer Section */}
+                        <div className="bg-white border border-gray-150 rounded-xl p-4 space-y-2.5">
+                          <div className="flex items-center gap-1.5 pb-2 border-b border-gray-100">
+                            <span className="w-5 h-5 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-black text-[9px]">C</span>
+                            <h5 className="text-[11px] font-bold text-gray-900">Customer Review</h5>
+                          </div>
+                          <div className="space-y-1.5 text-[11px] text-gray-600 font-semibold">
+                            <div className="flex justify-between">
+                              <span>Customer:</span>
+                              <span className="text-gray-900 font-bold">{notice.customerName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Date/Time:</span>
+                              <span className="text-gray-900">{notice.customerSubmitDate} {notice.customerSubmitTime}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Technician Section */}
+                        <div className="bg-white border border-gray-150 rounded-xl p-4 space-y-2.5">
+                          <div className="flex items-center gap-1.5 pb-2 border-b border-gray-100">
+                            <span className="w-5 h-5 rounded-lg bg-red-50 text-[#D12031] flex items-center justify-center font-black text-[9px]">T</span>
+                            <h5 className="text-[11px] font-bold text-gray-900">Technician Action</h5>
+                          </div>
+                          <div className="space-y-1.5 text-[11px] text-gray-600 font-semibold">
+                            <div className="flex justify-between">
+                              <span>Technician:</span>
+                              <span className="text-gray-900 font-bold">{notice.technicianName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Review Date:</span>
+                              <span className="text-gray-900">{notice.technicianApproveDate}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Right Column – Photos ── */}

@@ -104,7 +104,6 @@ export default function AdminLayout({
     { name: "My Request", path: "/admin/requests", icon: <FiClipboard size={18} /> },
     { name: "Assigned", path: "/admin/in-progress", icon: <FiClock size={18} /> },
     { name: "Messages", path: "/admin/messages", icon: <FiMessageSquare size={18} /> },
-    { name: "Notice & Notify", path: "/admin/notice-notify", icon: <FiBookOpen size={18} /> },
     { name: "Notification", path: "/admin/notifications", icon: <FiBell size={18} /> },
   ];
 
