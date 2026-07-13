@@ -440,24 +440,31 @@ export function PrimaryButton({
   id,
   children,
   type = "submit",
-}: { id: string; children: React.ReactNode; type?: "button" | "submit" }) {
+  disabled,
+}: { 
+  id: string; 
+  children: React.ReactNode; 
+  type?: "button" | "submit";
+  disabled?: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       id={id}
       type={type}
+      disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         width: "100%",
         padding: "14px",
         borderRadius: "8px",
-        backgroundColor: hovered ? "#a81828" : "#D12031",
+        backgroundColor: disabled ? "#9ca3af" : (hovered ? "#a81828" : "#D12031"),
         color: "#fff",
         fontWeight: 700,
         fontSize: "16px",
         border: "none",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

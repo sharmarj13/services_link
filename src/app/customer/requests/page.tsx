@@ -7,7 +7,8 @@ import {
 } from "react-icons/fi";
 import CustomerLayout from "@/components/CustomerLayout";
 import FilterModal from "@/components/FilterModal";
-import NewRequestModal, { CustomerRequestDetail } from "@/app/customer/modal/NewRequestModal";
+import NewRequestModal from "@/app/customer/modal/NewRequestModal";
+import { API_BASE_URL } from "@/config";
 
 type Status = "All" | "Assigned" | "In-Progress" | "Active" | "Completed";
 type Priority = "High" | "Medium" | "Low";
@@ -27,36 +28,8 @@ interface JobRequest {
   title: string;
   location: string;
   priority: Priority;
-  status: Omit<Status, "All">;
+  status: Exclude<Status, "All">;
 }
-
-const JOBS_DATA: JobRequest[] = [
-  { id: "99402", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-  { id: "99403", title: "Lighting Fix & Bulbs Replacement", location: "Main Assembly Floor", priority: "Medium", status: "Assigned" },
-  { id: "99404", title: "Bioreactor Calibration Check", location: "Lab Section 1", priority: "Low", status: "Assigned" },
-  { id: "99405", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-  { id: "99406", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Assigned" },
-  { id: "99407", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-
-  { id: "99410", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-  { id: "99411", title: "HVAC Evaporator Fan Cleanup", location: "Facility Area 4B", priority: "Medium", status: "Completed" },
-  { id: "99412", title: "Routine Safety Inspection", location: "Warehouse D", priority: "Low", status: "Completed" },
-  { id: "99413", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-  { id: "99414", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Completed" },
-  { id: "99415", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-
-  { id: "99420", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-  { id: "99421", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Medium", status: "In-Progress" },
-  { id: "99422", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "In-Progress" },
-  { id: "99423", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-  { id: "99424", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "In-Progress" },
-  { id: "99425", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-
-  { id: "99430", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Active" },
-  { id: "99431", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Medium", status: "Active" },
-  { id: "99432", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Active" },
-  { id: "99433", title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Active" },
-];
 
 const STATUS_OPTIONS: Status[] = ["All", "Assigned", "In-Progress", "Active", "Completed"];
 
@@ -85,23 +58,88 @@ export default function CustomerRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [allJobs, setAllJobs] = useState<JobRequest[]>(JOBS_DATA);
+  const [allJobs, setAllJobs] = useState<JobRequest[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
 
-  /* ── Add Modal states ── */
+  /* ── Modal states ── */
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [userContext, setUserContext] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Load user-created requests from localStorage and merge
-  useEffect(() => {
-    loadFromStorage();
-  }, []);
+  const mapStatus = (backendStatus: string): Exclude<Status, "All"> => {
+    switch (backendStatus) {
+      case "completed":
+        return "Completed";
+      case "in-progress":
+        return "In-Progress";
+      case "started":
+        return "Active";
+      case "assigned":
+      case "pending":
+      default:
+        return "Assigned";
+    }
+  };
 
-  const loadFromStorage = () => {
+  const mapPriority = (backendPriority: string): Priority => {
+    if (backendPriority === "high") return "High";
+    if (backendPriority === "low") return "Low";
+    return "Medium";
+  };
+
+  const fetchWorkRequests = async (siteId: string) => {
     try {
-      let storedNotices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      if (storedNotices.length === 0) {
-        storedNotices = [
+      const response = await fetch(`${API_BASE_URL}/api/sites/${siteId}/work-requests`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const obj = await response.json();
+        const list = obj.data || [];
+        const mapped = list.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          location: r.location || "Facility Area 1A",
+          priority: mapPriority(r.priority),
+          status: mapStatus(r.status),
+        }));
+        setAllJobs(mapped);
+      }
+    } catch (err) {
+      console.error("Error fetching requests:", err);
+      setError("Failed to sync work requests from the server.");
+    }
+  };
+
+  useEffect(() => {
+    const initPage = async () => {
+      try {
+        const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+        if (!meRes.ok) {
+          setError("Failed to load user session.");
+          setIsLoading(false);
+          return;
+        }
+        const meData = await meRes.json();
+        const siteId = meData.user?.siteUser?.siteId;
+        if (!siteId) {
+          setError("No site assigned to user context.");
+          setIsLoading(false);
+          return;
+        }
+
+        setUserContext({
+          userId: meData.user.id,
+          siteId,
+        });
+
+        await fetchWorkRequests(siteId);
+
+        // Load static notices fallback
+        setNotices([
           {
             jobId: "99410",
             noticeType: "Maintenance Issue",
@@ -120,52 +158,21 @@ export default function CustomerRequestsPage() {
             date: "Jun 25, 2026",
             time: "09:45 AM"
           }
-        ];
-        localStorage.setItem("servicelink_notices", JSON.stringify(storedNotices));
+        ]);
+      } catch (err) {
+        console.error("Init requests page error:", err);
+        setError("Database server is offline or unreachable.");
+      } finally {
+        setIsLoading(false);
       }
-      setNotices(storedNotices);
-      
-      const stored: CustomerRequestDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      if (stored.length > 0) {
-        const mapped: JobRequest[] = stored.map((r: CustomerRequestDetail) => ({
-          id: r.id,
-          title: r.title,
-          location: r.siteLocation || r.location || "Facility Area 1A",
-          priority: (r.priority as Priority) || "Medium",
-          status: (r.status || "Assigned") as Omit<Status, "All">,
-        }));
-        
-        // Map stored items by ID
-        const storedMap = new Map(mapped.map((item) => [item.id, item]));
-        
-        // Merge JOBS_DATA, replacing any hardcoded item with its edited version from localStorage
-        const mergedJobs = JOBS_DATA.map((job) => {
-          if (storedMap.has(job.id)) {
-            const edited = storedMap.get(job.id)!;
-            storedMap.delete(job.id); // remove from map so we don't duplicate
-            return edited;
-          }
-          return job;
-        });
-        
-        // The remaining items in storedMap are new user-created requests. Add them to the beginning.
-        const newRequests = Array.from(storedMap.values());
-        setAllJobs([...newRequests, ...mergedJobs]);
-      } else {
-        setAllJobs(JOBS_DATA);
-      }
-    } catch {}
-  };
-
-  const handleModalSubmit = (fullDetail: CustomerRequestDetail) => {
-    const newJob: JobRequest = {
-      id: fullDetail.id,
-      title: fullDetail.title,
-      location: fullDetail.siteLocation,
-      priority: fullDetail.priority as Priority,
-      status: fullDetail.status as Omit<Status, "All">,
     };
-    setAllJobs((prev) => [newJob, ...prev]);
+    initPage();
+  }, []);
+
+  const handleModalSubmit = async () => {
+    if (userContext?.siteId) {
+      await fetchWorkRequests(userContext.siteId);
+    }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
@@ -181,11 +188,31 @@ export default function CustomerRequestsPage() {
     return matchesStatus && matchesSearch;
   });
 
+  if (isLoading) {
+    return (
+      <CustomerLayout title="Work Requests" subtitle="Loading work requests...">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <svg className="animate-spin h-10 w-10 text-[#D12031]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-sm font-bold text-gray-500">Syncing live requests database...</span>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
   return (
     <CustomerLayout
       title="Work Requests"
       subtitle="Manage your work requests and track their progress"
     >
+      {error && (
+        <div className="bg-red-50 text-red-750 text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-red-100 mb-5 text-center leading-normal">
+          {error}
+        </div>
+      )}
+
       {/* ── Top toolbar ─────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center bg-white border border-gray-200 rounded-2xl p-4 shadow-sm mb-6">
         {/* Search */}
@@ -198,160 +225,154 @@ export default function CustomerRequestsPage() {
             placeholder="Search work requests..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-[14px] text-gray-900 focus:outline-none focus:border-[#D12031] transition-colors"
+            className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-gray-900 outline-none focus:border-[#D12031] transition-all"
           />
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Custom Status Dropdown */}
+        {/* Action controls */}
+        <div className="flex items-center gap-2.5 self-end lg:self-center">
+          {/* Status filter dropdown */}
           <div className="relative">
             <button
-              onClick={() => setDropdownOpen((v) => !v)}
-              className={`flex items-center gap-2.5 bg-white border pl-4 pr-3 py-2.5 text-sm font-semibold transition-all min-w-[150px] cursor-pointer focus:outline-none ${
-                dropdownOpen
-                  ? "border-[#D12031] text-[#D12031] rounded-t-lg rounded-b-none"
-                  : "border-gray-300 text-gray-700 rounded-lg hover:border-[#D12031]"
-              }`}
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              className="flex items-center justify-between gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all select-none cursor-pointer"
             >
-              <span className="flex-1 text-left">{activeStatus}</span>
-              <FiChevronDown
-                size={17}
-                className={`transition-transform duration-200 ${
-                  dropdownOpen ? "text-[#D12031] rotate-180" : "text-gray-400"
-                }`}
-              />
+              <span>Status: {activeStatus}</span>
+              <FiChevronDown size={14} className="text-gray-400" />
             </button>
 
             {dropdownOpen && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-[#D12031] border-t-0 rounded-b-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-50 overflow-hidden">
-                {STATUS_OPTIONS.map((s) => {
-                  const isSelected = activeStatus === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setActiveStatus(s);
-                        setDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-4 py-[11px] text-[13px] font-semibold transition-colors cursor-pointer border-none border-b border-gray-100 ${
-                        isSelected
-                          ? "bg-red-50/50 text-[#D12031]"
-                          : "bg-white text-gray-900 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span>{s}</span>
-                      {isSelected && (
-                        <span className="text-[#D12031] text-[15px] font-bold">✓</span>
-                      )}
-                    </button>
-                  );
-                })}
+              <div className="absolute right-0 top-[calc(100%+6px)] w-48 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                {STATUS_OPTIONS.map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => {
+                      setActiveStatus(status);
+                      setDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4.5 py-3 text-xs font-semibold border-none cursor-pointer transition-colors ${
+                      activeStatus === status
+                        ? "bg-red-50 text-[#D12031]"
+                        : "text-gray-750 hover:bg-gray-50"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Filter */}
           <button
             onClick={() => setIsFilterOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer"
           >
-            <FiFilter size={16} />
+            <FiFilter size={15} />
             <span>Filter</span>
           </button>
 
-          {/* Export */}
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer">
-            <FiDownload size={16} />
+          <button className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
+            <FiDownload size={15} />
             <span>Export</span>
+          </button>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-4.5 py-2.5 bg-[#D12031] hover:bg-[#b81d2c] text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-red-500/10 cursor-pointer border-none"
+          >
+            <FiPlus size={15} />
+            <span>New Request</span>
           </button>
         </div>
       </div>
 
-      {/* ── Main card section ─────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Red banner */}
-        <div className="bg-[#D12031] px-6 py-5">
-          <h2 className="text-white text-[17px] font-bold">My Work Requests</h2>
-          <p className="text-white/90 text-[12px] font-medium mt-1">
-            Track the status of work requests you&apos;ve submitted
+      {/* ── Notices (Issues list) ────────────────────────── */}
+      {notices.length > 0 && activeStatus === "All" && (
+        <div className="space-y-4 mb-6">
+          {notices.map((n, idx) => (
+            <div
+              key={idx}
+              className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-[#b45309] bg-[#fef3c7] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                    {n.noticeType}
+                  </span>
+                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                    {n.priority}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-gray-700 leading-relaxed max-w-3xl">
+                  {n.description}
+                </p>
+                <div className="text-[11px] text-gray-400 font-semibold pt-1">
+                  Posted on {n.date} at {n.time} • Job ID #{n.jobId}
+                </div>
+              </div>
+              {n.actionRequired && (
+                <button className="self-start md:self-center px-4.5 py-2.5 bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-bold rounded-xl transition-colors border-none cursor-pointer shrink-0">
+                  Request Action
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Requests grid/feed ──────────────────────────── */}
+      {filteredJobs.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredJobs.map((job) => (
+            <div
+              key={job.id}
+              className={`border border-gray-200 border-l-[4px] ${STATUS_BORDER[job.status] || "border-l-gray-300"} rounded-2xl p-5 sm:p-6 bg-white shadow-xs hover:shadow-md transition-shadow relative`}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3 pr-8">
+                  <h4 className="text-[16px] font-bold text-gray-900 leading-tight">
+                    {job.title}
+                  </h4>
+                </div>
+
+                <div className="text-[12px] text-gray-450 font-semibold">
+                  {job.location} • ID #{job.id}
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${PRIORITY_BADGE[job.priority]}`}>
+                    {job.priority} Priority
+                  </span>
+                  <span className={`text-[11px] font-extrabold flex items-center gap-1.5 ${STATUS_COLOR[job.status] || "text-gray-500"}`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    {job.status}
+                  </span>
+                </div>
+              </div>
+
+              <Link
+                href={`/customer/requests/${job.id}`}
+                className="absolute right-5 bottom-5 text-[#D12031] hover:text-[#b81d2c] text-sm font-bold flex items-center gap-0.5"
+              >
+                View <span className="text-[16px] mb-0.5">›</span>
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-20 bg-white border border-gray-200 rounded-2xl p-6">
+          <div className="text-gray-400 font-bold text-base">No work requests found matching search or filters.</div>
+          <p className="text-gray-500 text-xs mt-2 max-w-sm mx-auto font-medium leading-relaxed">
+            Try resetting your status filters or typing another query, or click New Request to create a request!
           </p>
         </div>
+      )}
 
-        {/* Cards */}
-        <div className="p-6">
-          {filteredJobs.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 font-medium">
-              No work requests found.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={`border border-gray-200 border-l-[4px] rounded-xl p-5 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow ${
-                    STATUS_BORDER[job.status as string] || "border-l-gray-300"
-                  }`}
-                >
-                  {/* Card top */}
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-[15px] font-bold text-gray-900 leading-snug">
-                        {job.title}
-                      </h3>
-                      <span
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${PRIORITY_BADGE[job.priority]}`}
-                      >
-                        {job.priority} Priority
-                      </span>
-                    </div>
-                    <p className="text-[12px] text-gray-500 mt-1.5 font-medium">
-                      {job.location} • ID #{job.id}
-                    </p>
-                    {job.status === "Completed" && notices.some((n: Notice) => n.jobId === job.id) && (
-                      <div className="mt-3 text-[11px] font-bold text-[#D12031] bg-red-50 border border-red-200/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1 w-fit">
-                        Notice & Notify Applied
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card bottom */}
-                  <div className="mt-8 flex items-center justify-between">
-                    <span
-                      className={`font-bold text-[15px] ${
-                        STATUS_COLOR[job.status as string] || "text-gray-600"
-                      }`}
-                    >
-                      {job.status}
-                    </span>
-                    <Link
-                      href={`/customer/requests/${job.id}`}
-                      className="text-[#D12031] hover:text-[#a81828] font-bold text-[14px] flex items-center gap-1 transition-colors"
-                    >
-                      <span>View Detail</span>
-                      <span className="text-[17px] leading-none mb-px">›</span>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Floating + button ────────────────────────────── */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-8 right-8 z-40 h-16 w-16 rounded-full bg-[#D12031] hover:bg-[#a81828] text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border-none outline-none"
-      >
-        <FiPlus size={28} />
-      </button>
-
-      {/* ── Filter Modal ────────────────────────────────── */}
+      {/* ── Filter Modal ───────────────────────────────────── */}
       <FilterModal
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
-        onApply={() => console.log("Filter applied")}
+        onApply={() => setIsFilterOpen(false)}
       />
 
       {/* Close dropdown on outside click */}
@@ -367,6 +388,7 @@ export default function CustomerRequestsPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleModalSubmit}
+        siteId={userContext?.siteId || ""}
       />
 
       {/* ── Success Toast ────────────────────────────────── */}
@@ -383,7 +405,7 @@ export default function CustomerRequestsPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
         .animate-toast-in {
-          animation: toastIn 0.3s ease forwards;
+          animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
     </CustomerLayout>

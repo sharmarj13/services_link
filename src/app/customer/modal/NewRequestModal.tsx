@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { FiCalendar, FiTrash2, FiCheck } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
+import { API_BASE_URL } from "@/config";
 
 export interface CustomerRequestDetail {
   id: string;
@@ -38,10 +39,11 @@ export interface CustomerRequestDetail {
 interface NewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (newRequest: CustomerRequestDetail) => void;
+  onSubmit: (createdRequest: any) => void;
+  siteId: string;
 }
 
-export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewRequestModalProps) {
+export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: NewRequestModalProps) {
   const [reqTitle, setReqTitle] = useState("");
   const [detailedDesc, setDetailedDesc] = useState("");
   const [scopeOfWork, setScopeOfWork] = useState("");
@@ -52,6 +54,8 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
   const [category, setCategory] = useState("Cleaning");
   const [department, setDepartment] = useState("None");
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -75,58 +79,71 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
     setCategory("Cleaning");
     setDepartment("None");
     setUploadedPhotos([]);
+    setError("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reqTitle.trim() || !detailedDesc.trim()) return;
+    setError("");
 
-    const newId = String(Math.floor(10000 + Math.random() * 90000));
-    const resolvedLocation =
-      siteLocation.trim() ||
-      (department !== "None" ? `${department} Floor` : "Facility Area 1A");
+    if (!reqTitle.trim()) {
+      setError("Request Title is required.");
+      return;
+    }
+    if (!detailedDesc.trim()) {
+      setError("Detailed Description is required.");
+      return;
+    }
+    if (!siteId) {
+      setError("User Site ID is not initialized. Please refresh and try again.");
+      return;
+    }
 
-    const fullDetail = {
-      id: newId,
-      title: reqTitle.trim(),
-      status: "Assigned",
-      customer: "Maurice Maldonado",
-      siteLocation: resolvedLocation,
-      department: department !== "None" ? department : "General",
-      scheduleDate: dueDate
-        ? new Date(dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-        : "TBD",
-      poNumber: `#PO-${Math.floor(100000 + Math.random() * 900000)}`,
-      assetId: "N/A",
-      scopeOfWork: scopeOfWork.trim() || detailedDesc.trim(),
-      detailedDescription: detailedDesc.trim(),
-      contactName: "James Brennan",
-      contactRole: "Facility Manager",
-      contactInitials: "JB",
-      attachments: uploadedPhotos.length > 0 ? uploadedPhotos : [],
-      workType: "Routine",
-      workType2: "Recyclable",
-      priority: priority,
-      duration: "TBD",
-      unit: "Select unit",
-      quantity: "0.00",
-      category: category,
-      ppeUsed: [],
-      additionalNotes: additionalNotes.trim(),
-      beforePhotos: [],
-      afterPhotos: [],
-    };
+    setIsLoading(true);
 
-    // Save to localStorage
     try {
-      const existing = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      existing.unshift(fullDetail);
-      localStorage.setItem("customerRequests", JSON.stringify(existing));
-    } catch {}
+      const resolvedLocation =
+        siteLocation.trim() ||
+        (department !== "None" ? `${department} Floor` : "Facility Area 1A");
 
-    onSubmit(fullDetail);
-    resetForm();
-    onClose();
+      const response = await fetch(`${API_BASE_URL}/api/work-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          siteId: siteId,
+          title: reqTitle.trim(),
+          description: detailedDesc.trim(),
+          category: category.toLowerCase(),
+          priority: priority.toLowerCase(),
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+          scopeOfWork: scopeOfWork.trim() || detailedDesc.trim(),
+          referencePhotoUrls: uploadedPhotos.length > 0 ? uploadedPhotos : null,
+          location: resolvedLocation,
+          department: department !== "None" ? department : "General",
+          additionalNotes: additionalNotes.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        setError(errData.message || "Failed to create work request. Check details.");
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      onSubmit(data);
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error("Submit request error:", err);
+      setError("Server connection failed. Make sure the backend is running.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -135,10 +152,17 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 text-center shrink-0">
           <h3 className="text-[20px] font-bold text-gray-900">New Work Request</h3>
-          <p className="text-[13px] text-gray-500 mt-1 font-medium">
+          <p className="text-[13px] text-gray-550 mt-1 font-medium">
             Fill out the form below to submit a new work request.
           </p>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="mx-6 mt-4 bg-red-50 text-red-750 text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-red-100 text-center leading-normal">
+            {error}
+          </div>
+        )}
 
         {/* Form Fields */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -319,17 +343,31 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
           <button
             type="button"
             onClick={() => { resetForm(); onClose(); }}
-            className="flex-1 py-3 px-4 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-sm rounded-xl transition-all cursor-pointer"
+            disabled={isLoading}
+            className="flex-1 py-3 px-4 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50"
           >
             Close
           </button>
           <button
             type="submit"
             onClick={handleSubmit}
-            className="flex-1 py-3 px-4 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
+            disabled={isLoading}
+            className="flex-1 py-3 px-4 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FiCheck size={16} strokeWidth={3} />
-            Submit Request
+            {isLoading ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <FiCheck size={16} strokeWidth={3} />
+                Submit Request
+              </>
+            )}
           </button>
         </div>
       </div>

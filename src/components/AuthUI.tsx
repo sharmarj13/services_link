@@ -291,16 +291,19 @@ export function PrimaryButton({
   id,
   children,
   type = "submit",
+  disabled,
 }: {
   id: string;
   children: React.ReactNode;
   type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   return (
     <button
       id={id}
       type={type}
-      className="w-full py-3.5 rounded-lg bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[16px] border-none cursor-pointer flex items-center justify-center gap-2 font-sans transition-colors duration-150 box-border"
+      disabled={disabled}
+      className="w-full py-3.5 rounded-lg bg-[#D12031] hover:bg-[#a81828] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold text-[16px] border-none cursor-pointer flex items-center justify-center gap-2 font-sans transition-colors duration-150 box-border"
     >
       {children}
     </button>

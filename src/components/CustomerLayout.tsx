@@ -15,6 +15,7 @@ import {
   FiX,
   FiChevronDown,
 } from "react-icons/fi";
+import { API_BASE_URL } from "@/config";
 
 interface CustomerLayoutProps {
   children: React.ReactNode;
@@ -32,6 +33,7 @@ export default function CustomerLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -53,7 +55,17 @@ export default function CustomerLayout({
     { name: "Settings", path: "/customer/settings", icon: <FiSettings size={18} /> },
   ];
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    setIsLoggingOut(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+    } catch (err) {
+      console.error("Signout error:", err);
+    }
+    setIsLoggingOut(false);
     setShowSignOutModal(false);
     router.push("/login");
   };
@@ -180,7 +192,7 @@ export default function CustomerLayout({
                 <button
                   onClick={() => {
                     setProfileDropdownOpen(false);
-                    handleSignOut();
+                    setShowSignOutModal(true);
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-[#D12031] hover:bg-red-50/50 transition-colors border-none text-left cursor-pointer"
                 >
@@ -257,15 +269,27 @@ export default function CustomerLayout({
             <div className="flex gap-3">
               <button
                 onClick={() => setShowSignOutModal(false)}
-                className="flex-1 py-3 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-sm rounded-xl cursor-pointer transition-colors"
+                disabled={isLoggingOut}
+                className="flex-1 py-3 border border-gray-200 bg-white hover:bg-gray-50 text-gray-750 font-semibold text-sm rounded-xl cursor-pointer transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex-1 py-3 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-sm rounded-xl cursor-pointer shadow-lg shadow-red-500/20 transition-colors border-none"
+                disabled={isLoggingOut}
+                className="flex-1 py-3 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-sm rounded-xl cursor-pointer shadow-lg shadow-red-500/20 transition-colors border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
-                Yes, Sign Out
+                {isLoggingOut ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Signing Out...</span>
+                  </>
+                ) : (
+                  "Yes, Sign Out"
+                )}
               </button>
             </div>
           </div>

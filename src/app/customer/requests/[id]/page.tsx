@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
+import { API_BASE_URL } from "@/config";
 import {
   FiRotateCcw,
   FiUser,
@@ -171,9 +172,13 @@ const STATUS_BADGE: Record<
 export default function CustomerRequestDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [job, setJob] = useState<JobDetail>(DEFAULT_JOB_DETAIL);
+  const [job, setJob] = useState<JobDetail | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   /* ── Edit Modal states ── */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -197,7 +202,36 @@ export default function CustomerRequestDetailPage() {
     setTimeout(() => setToastMsg(""), 3000);
   };
 
+  const mapStatus = (backendStatus: string): "Assigned" | "In-Progress" | "Completed" | "Active" => {
+    switch (backendStatus) {
+      case "completed":
+        return "Completed";
+      case "in-progress":
+        return "In-Progress";
+      case "started":
+        return "Active";
+      case "assigned":
+      case "pending":
+      default:
+        return "Assigned";
+    }
+  };
+
+  const mapPriority = (backendPriority: string): string => {
+    if (backendPriority === "high") return "High";
+    if (backendPriority === "low") return "Low";
+    return "Medium";
+  };
+
+  const mapCategory = (backendCategory: string): string => {
+    if (backendCategory === "cleaning") return "Cleaning";
+    if (backendCategory === "maintenance") return "Maintenance";
+    if (backendCategory === "safety") return "Safety";
+    return "Cleaning";
+  };
+
   const openEditModal = () => {
+    if (!job) return;
     setEditTitle(job.title);
     setEditLocation(job.siteLocation);
     setEditDept(job.department);
@@ -212,115 +246,204 @@ export default function CustomerRequestDetailPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const fetchJobDetail = async () => {
+    if (!params?.id) return;
+    const id = params.id as string;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/work-requests/${id}`, {
+        credentials: "include"
+      });
+      if (!res.ok) {
+        setError("Failed to fetch request details from server.");
+        return;
+      }
+      const data = await res.json();
+      const mappedJob: JobDetail = {
+        id: data.id,
+        title: data.title,
+        status: mapStatus(data.status),
+        customer: data.customer ? `${data.customer.firstName} ${data.customer.lastName}` : "Customer",
+        siteLocation: data.location || "Facility Area 1A",
+        department: data.department || "General",
+        scheduleDate: data.dueDate ? new Date(data.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "TBD",
+        poNumber: data.poNumber || "#PO-N/A",
+        assetId: data.assetId || "N/A",
+        scopeOfWork: data.scopeOfWork || data.description || "N/A",
+        contactName: data.assignedEmployee ? `${data.assignedEmployee.firstName} ${data.assignedEmployee.lastName}` : "Unassigned",
+        contactRole: data.assignedEmployee?.role || "Technician",
+        contactInitials: data.assignedEmployee ? (data.assignedEmployee.firstName[0] + data.assignedEmployee.lastName[0]).toUpperCase() : "UT",
+        attachments: data.referencePhotoUrls || [],
+        workType: "Routine",
+        workType2: "Recyclable",
+        priority: mapPriority(data.priority),
+        duration: data.duration || "TBD",
+        unit: data.unit || "Select unit",
+        quantity: data.quantity || "0.00",
+        category: mapCategory(data.category),
+        ppeUsed: data.ppeUsed || [],
+        additionalNotes: data.additionalNotes || "",
+        detailedDescription: data.description || "",
+        beforePhotos: data.beforePhotoUrls || [],
+        afterPhotos: data.afterPhotoUrls || [],
+      };
+      setJob(mappedJob);
+    } catch (err) {
+      console.error("Fetch request error:", err);
+      setError("Connection to backend server failed.");
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editTitle.trim() || !editLocation.trim() || !editDept.trim() || !editDate.trim() || !editScope.trim()) {
-      alert("Please fill in all required fields (Title, Site Location, Department, Schedule Date, and Scope of Work).");
+    if (!job) return;
+    if (!editTitle.trim() || !editLocation.trim() || !editScope.trim()) {
+      alert("Please fill in all required fields (Title, Site Location, and Scope of Work).");
       return;
     }
-    const updated = {
-      ...job,
-      title: editTitle.trim(),
-      siteLocation: editLocation.trim(),
-      department: editDept.trim(),
-      scheduleDate: editDate.trim(),
-      poNumber: editPo.trim(),
-      assetId: editAsset.trim(),
-      scopeOfWork: editScope.trim(),
-      priority: editPriority,
-      category: editCategory,
-      additionalNotes: editAdditionalNotes.trim(),
-      detailedDescription: editDetailedDesc.trim(),
-    };
-    setJob(updated);
 
-    // Persist edit back to localStorage
+    setIsSaving(true);
     try {
-      const existing: JobDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      const idx = existing.findIndex((r) => r.id === updated.id);
-      if (idx !== -1) {
-        existing[idx] = updated;
-      } else {
-        existing.unshift(updated);
-      }
-      localStorage.setItem("customerRequests", JSON.stringify(existing));
-    } catch { }
+      const updates = {
+        title: editTitle.trim(),
+        location: editLocation.trim(),
+        scopeOfWork: editScope.trim(),
+        priority: editPriority.toLowerCase(),
+        category: editCategory.toLowerCase(),
+        description: editDetailedDesc.trim() || editScope.trim(),
+        additionalNotes: editAdditionalNotes.trim(),
+        poNumber: editPo.trim() || null,
+        assetId: editAsset.trim() || null,
+        dueDate: editDate ? new Date(editDate) : null,
+      };
 
-    setIsEditModalOpen(false);
-    showToast("Work request updated successfully!");
+      const response = await fetch(`${API_BASE_URL}/api/work-requests/${job.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const errObj = await response.json();
+        alert(errObj.message || "Failed to update work request details.");
+        setIsSaving(false);
+        return;
+      }
+
+      setIsEditModalOpen(false);
+      showToast("Work request updated successfully!");
+      await fetchJobDetail();
+    } catch (err) {
+      console.error("Update request error:", err);
+      alert("Server connection failed. Could not save changes.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteRequest = async () => {
+    if (!job) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/work-requests/${job.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errObj = await response.json();
+        alert(errObj.message || "Failed to delete work request.");
+        setIsDeleting(false);
+        return;
+      }
+
+      setShowDeleteModal(false);
+      router.push("/customer/requests");
+    } catch (err) {
+      console.error("Delete request error:", err);
+      alert("Server connection failed. Could not delete request.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
-    if (!params?.id) return;
-    const id = params.id as string;
-
-    // Fetch notice if exists
-    try {
-      let notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      if (notices.length === 0) {
-        notices = [
-          {
-            jobId: "99410",
-            noticeType: "Maintenance Issue",
-            priority: "High",
-            description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
-            actionRequired: true,
-            date: "Jun 24, 2026",
-            time: "11:30 AM"
-          },
-          {
-            jobId: "99411",
-            noticeType: "Safety Hazard",
-            priority: "Urgent",
-            description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
-            actionRequired: true,
-            date: "Jun 25, 2026",
-            time: "09:45 AM"
-          }
-        ];
-        localStorage.setItem("servicelink_notices", JSON.stringify(notices));
-      }
-      const foundNotice = notices.find((n: Notice) => n.jobId === id);
-      if (foundNotice) {
-        setNotice(foundNotice);
-      } else {
-        setNotice(null);
-      }
-    } catch { }
-
-    // 1️⃣ Check localStorage first (user-created requests)
-    try {
-      const stored: JobDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      const found = stored.find((r) => r.id === id);
-      if (found) {
-        setJob(found);
+    const initPage = async () => {
+      setIsLoading(true);
+      if (!params?.id) {
+        setIsLoading(false);
         return;
       }
-    } catch { }
+      const id = params.id as string;
 
-    // 2️⃣ Fall back to HARDCODED_JOBS or DEFAULT_JOB_DETAIL for demo/hardcoded IDs
-    const hardcoded = HARDCODED_JOBS[id];
-    if (hardcoded) {
-      setJob({
-        ...DEFAULT_JOB_DETAIL,
-        id,
-        title: hardcoded.title,
-        siteLocation: hardcoded.location,
-        priority: hardcoded.priority,
-        status: hardcoded.status,
-      });
-    } else {
-      if (id.startsWith("9942")) {
-        setJob({ ...DEFAULT_JOB_DETAIL, id, status: "In-Progress" });
-      } else if (id.startsWith("9941")) {
-        setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Completed" });
-      } else if (id.startsWith("9943")) {
-        setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Active" });
-      } else {
-        setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Assigned" });
-      }
-    }
+      // Fetch notice fallback
+      try {
+        let notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
+        if (notices.length === 0) {
+          notices = [
+            {
+              jobId: "99410",
+              noticeType: "Maintenance Issue",
+              priority: "High",
+              description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
+              actionRequired: true,
+              date: "Jun 24, 2026",
+              time: "11:30 AM"
+            },
+            {
+              jobId: "99411",
+              noticeType: "Safety Hazard",
+              priority: "Urgent",
+              description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
+              actionRequired: true,
+              date: "Jun 25, 2026",
+              time: "09:45 AM"
+            }
+          ];
+          localStorage.setItem("servicelink_notices", JSON.stringify(notices));
+        }
+        const foundNotice = notices.find((n: Notice) => n.jobId === id);
+        setNotice(foundNotice || null);
+      } catch { }
+
+      await fetchJobDetail();
+      setIsLoading(false);
+    };
+
+    initPage();
   }, [params]);
+
+  if (isLoading) {
+    return (
+      <CustomerLayout title="Work Requests" subtitle="Loading work request...">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <svg className="animate-spin h-10 w-10 text-[#D12031]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-sm font-bold text-gray-500">Loading details from database...</span>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  if (error || !job) {
+    return (
+      <CustomerLayout title="Work Requests" subtitle="Request Error">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <div className="text-red-750 font-bold text-lg">{error || "Work request not found."}</div>
+          <button
+            onClick={() => router.push("/customer/requests")}
+            className="px-6 py-2.5 bg-[#D12031] text-white rounded-xl font-bold text-xs border-none cursor-pointer hover:bg-[#a81828]"
+          >
+            Go Back to Requests
+          </button>
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   const isAssigned = job.status === "Assigned" || job.status === "Active";
   const badge = STATUS_BADGE[job.status] ?? STATUS_BADGE["Assigned"];
@@ -1121,10 +1244,23 @@ export default function CustomerRequestDetailPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20"
+                  disabled={isSaving}
+                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FiCheckCircle size={15} />
-                  Save Changes
+                  {isSaving ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiCheckCircle size={15} />
+                      Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1154,19 +1290,24 @@ export default function CustomerRequestDetailPage() {
                   Close
                 </button>
                 <button
-                  onClick={() => {
-                    try {
-                      const existing: JobDetail[] = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-                      const updatedList = existing.filter((r: JobDetail) => r.id !== job.id);
-                      localStorage.setItem("customerRequests", JSON.stringify(updatedList));
-                    } catch { }
-                    setShowDeleteModal(false);
-                    router.push("/customer/requests");
-                  }}
-                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20"
+                  onClick={handleDeleteRequest}
+                  disabled={isDeleting}
+                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FiTrash2 size={17} />
-                  Delete
+                  {isDeleting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 size={17} />
+                      Delete
+                    </>
+                  )}
                 </button>
               </div>
             </div>

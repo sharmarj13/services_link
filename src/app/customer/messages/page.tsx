@@ -5,6 +5,7 @@ import CustomerLayout from "@/components/CustomerLayout";
 import { FiUser } from "react-icons/fi";
 import ChatModal from "@/components/ChatModal";
 import NewRequestModal from "@/app/customer/modal/NewRequestModal";
+import { API_BASE_URL } from "@/config";
 
 /* ── Types ── */
 interface Notice {
@@ -118,6 +119,26 @@ export default function CustomerMessagesPage() {
   const [convList, setConvList] = useState(CONVERSATIONS);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
+  const [siteId, setSiteId] = useState("");
+
+  // Retrieve site ID on mount
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
+        if (res.ok) {
+          const meData = await res.json();
+          const sId = meData.user?.siteUser?.siteId;
+          if (sId) {
+            setSiteId(sId);
+          }
+        }
+      } catch (err) {
+        console.error("Session load error in messages page:", err);
+      }
+    };
+    fetchSession();
+  }, []);
 
   // Load notices list
   useEffect(() => {
@@ -318,6 +339,7 @@ export default function CustomerMessagesPage() {
       <NewRequestModal
         isOpen={isNewRequestOpen}
         onClose={() => setIsNewRequestOpen(false)}
+        siteId={siteId}
         onSubmit={(newRequest) => {
           setIsNewRequestOpen(false);
           const successText = `✅ New Work Request Created:\nID: #${newRequest.id}\nTitle: ${newRequest.title}\nPriority: ${newRequest.priority}\nStatus: Assigned`;
