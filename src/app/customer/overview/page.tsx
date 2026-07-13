@@ -14,6 +14,38 @@ import CustomerLayout from "@/components/CustomerLayout";
 import NewRequestModal from "@/app/customer/modal/NewRequestModal";
 import { API_BASE_URL } from "@/config";
 
+interface RequestItem {
+  id: string;
+  title: string;
+  location: string;
+  priority: string;
+  status: string;
+  priorityStyle: string;
+}
+
+interface DeptItem {
+  department: string;
+  completedCleanings: number;
+  totalWasteQuantity?: number;
+  wasteCollected?: number;
+  avgDuration?: number;
+}
+
+interface WasteItem {
+  name: string;
+  sub: string;
+  val: string;
+}
+
+interface UserContext {
+  userId: string;
+  siteId: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
 // Stepper stages
 const STEP_LABELS = ["Assigned", "Started", "In-Progress", "Completed"];
 
@@ -24,17 +56,17 @@ export default function CustomerOverviewPage() {
   const [showToast, setShowToast] = useState(false);
 
   // Dynamic state loaded from APIs
-  const [requestsList, setRequestsList] = useState<any[]>([]);
-  const [activeJob, setActiveJob] = useState<any>(null);
+  const [requestsList, setRequestsList] = useState<RequestItem[]>([]);
+  const [activeJob, setActiveJob] = useState<RequestItem | null>(null);
   
   // Analytics
   const [totalCleanings, setTotalCleanings] = useState(0);
   const [totalWaste, setTotalWaste] = useState("0 kg");
   const [activeDepts, setActiveDepts] = useState(0);
-  const [departmentsData, setDepartmentsData] = useState<any[]>([]);
-  const [wasteTypesData, setWasteTypesData] = useState<any[]>([]);
+  const [departmentsData, setDepartmentsData] = useState<DeptItem[]>([]);
+  const [wasteTypesData, setWasteTypesData] = useState<WasteItem[]>([]);
   
-  const [userContext, setUserContext] = useState<any>(null);
+  const [userContext, setUserContext] = useState<UserContext | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,13 +92,13 @@ export default function CustomerOverviewPage() {
         
         const deptBreakdown = compStats.departmentBreakdown || [];
         setDepartmentsData(deptBreakdown);
-        setActiveDepts(deptBreakdown.filter((d: any) => d.completedCleanings > 0).length);
+        setActiveDepts(deptBreakdown.filter((d: DeptItem) => d.completedCleanings > 0).length);
 
         const wasteBreakdown = compStats.wasteTypeBreakdown || [];
-        setWasteTypesData(wasteBreakdown.map((w: any) => ({
-          name: w.wasteType,
-          sub: `Collected in ${w.count || 0} cleanings`,
-          val: `${w.totalQuantity || 0} ${w.unit || 'kg'}`
+        setWasteTypesData(wasteBreakdown.map((w: Record<string, unknown>) => ({
+          name: (w.wasteType as string) || "",
+          sub: `Collected in ${(w.count as number) || 0} cleanings`,
+          val: `${(w.totalQuantity as number) || 0} ${(w.unit as string) || "kg"}`
         })));
       }
 
@@ -74,30 +106,33 @@ export default function CustomerOverviewPage() {
         const requestsObj = await requestsRes.json();
         const list = requestsObj.data || [];
         
-        const mapped = list.map((r: any) => ({
-          id: r.id,
-          title: r.title,
-          location: r.location || "Facility Main Area",
-          priority: r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : "Medium",
-          status: r.status,
-          priorityStyle:
-            r.priority === "high"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : r.priority === "medium"
-                ? "bg-lime-50 text-lime-700 border-lime-200"
-                : "bg-amber-50 text-amber-700 border-amber-200",
-        }));
+        const mapped = list.map((r: Record<string, unknown>) => {
+          const priority = (r.priority as string) || "";
+          const status = (r.status as string) || "";
+          return {
+            id: r.id as string,
+            title: r.title as string,
+            location: (r.location as string) || "Facility Main Area",
+            priority: priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : "Medium",
+            status,
+            priorityStyle:
+              priority === "high"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : priority === "medium"
+                  ? "bg-lime-50 text-lime-700 border-lime-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200",
+          };
+        });
         setRequestsList(mapped);
 
         // Find the active in-progress job
-        const currentActive = list.find((r: any) => r.status === "in-progress" || r.status === "started");
+        const currentActive = list.find((r: Record<string, unknown>) => r.status === "in-progress" || r.status === "started");
         if (currentActive) {
-          setActiveJob(currentActive);
+          setActiveJob(currentActive as RequestItem);
         } else {
-          // Fallback to first non-completed request
-          const pendingReq = list.find((r: any) => r.status !== "completed");
+          const pendingReq = list.find((r: Record<string, unknown>) => r.status !== "completed");
           if (pendingReq) {
-            setActiveJob(pendingReq);
+            setActiveJob(pendingReq as RequestItem);
           } else {
             setActiveJob(null);
           }
@@ -231,7 +266,7 @@ export default function CustomerOverviewPage() {
               <select
                 id="select-analytics-scope"
                 defaultValue="All Time"
-                onChange={(e) => {
+                onChange={() => {
                   if (userContext?.siteId) {
                     fetchDashboardData(userContext.siteId);
                   }
@@ -421,7 +456,6 @@ export default function CustomerOverviewPage() {
 
                     <div className="relative z-10 flex items-center justify-between">
                       {STEP_LABELS.map((label, index) => {
-                        const stepKey = label.toLowerCase();
                         const completed = 
                           activeJob.status === "completed" ? index <= 3 :
                           activeJob.status === "in-progress" ? index <= 2 :

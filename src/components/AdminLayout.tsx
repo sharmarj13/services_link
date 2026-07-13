@@ -19,7 +19,6 @@ import {
   FiShield,
   FiUsers,
   FiMapPin,
-  FiBookOpen,
 } from "react-icons/fi";
 import { API_BASE_URL } from "@/config";
 

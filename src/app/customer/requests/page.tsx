@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   FiSearch, FiFilter, FiDownload, FiPlus, FiChevronDown, FiCheck,
@@ -9,6 +9,11 @@ import CustomerLayout from "@/components/CustomerLayout";
 import FilterModal from "@/components/FilterModal";
 import NewRequestModal from "@/app/customer/modal/NewRequestModal";
 import { API_BASE_URL } from "@/config";
+
+interface SiteUserContext {
+  userId: string;
+  siteId: string;
+}
 
 type Status = "All" | "Assigned" | "In-Progress" | "Active" | "Completed";
 type Priority = "High" | "Medium" | "Low";
@@ -64,7 +69,7 @@ export default function CustomerRequestsPage() {
   /* ── Modal states ── */
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [userContext, setUserContext] = useState<any>(null);
+  const [userContext, setUserContext] = useState<SiteUserContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -89,7 +94,7 @@ export default function CustomerRequestsPage() {
     return "Medium";
   };
 
-  const fetchWorkRequests = async (siteId: string) => {
+  const fetchWorkRequests = useCallback(async (siteId: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/sites/${siteId}/work-requests`, {
         credentials: "include",
@@ -97,12 +102,12 @@ export default function CustomerRequestsPage() {
       if (response.ok) {
         const obj = await response.json();
         const list = obj.data || [];
-        const mapped = list.map((r: any) => ({
-          id: r.id,
-          title: r.title,
-          location: r.location || "Facility Area 1A",
-          priority: mapPriority(r.priority),
-          status: mapStatus(r.status),
+        const mapped = list.map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          title: r.title as string,
+          location: (r.location as string) || "Facility Area 1A",
+          priority: mapPriority((r.priority as string) || ""),
+          status: mapStatus((r.status as string) || ""),
         }));
         setAllJobs(mapped);
       }
@@ -110,7 +115,7 @@ export default function CustomerRequestsPage() {
       console.error("Error fetching requests:", err);
       setError("Failed to sync work requests from the server.");
     }
-  };
+  }, []);
 
   useEffect(() => {
     const initPage = async () => {
@@ -167,7 +172,7 @@ export default function CustomerRequestsPage() {
       }
     };
     initPage();
-  }, []);
+  }, [fetchWorkRequests]);
 
   const handleModalSubmit = async () => {
     if (userContext?.siteId) {

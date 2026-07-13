@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
 import { API_BASE_URL } from "@/config";
@@ -62,81 +62,6 @@ interface Notice {
   date: string;
   time: string;
 }
-
-const DEFAULT_JOB_DETAIL: JobDetail = {
-  id: "99402",
-  title: "HVAC Compressor Maintenance",
-  status: "Assigned",
-  customer: "Maurice Maldonado",
-  siteLocation: "Warehouse D, Bay 14",
-  department: "Maintenance & Ops",
-  scheduleDate: "Oct 24, 08:00 AM",
-  poNumber: "#PO-882910",
-  assetId: "HVAC-UNIT-04",
-  scopeOfWork:
-    "Diagnose the network issue, inspect switches and cabling, identify the root cause, and restore connectivity. Test the network after repairs and provide a completion report.",
-  contactName: "James Brennan",
-  contactRole: "Facility Manager",
-  contactInitials: "JB",
-  attachments: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
-  workType: "Routine",
-  workType2: "Recyclable",
-  priority: "Medium",
-  duration: "30 Minute",
-  unit: "Select unit",
-  quantity: "0.00",
-  category: "Cleaning",
-  ppeUsed: ["Safety Glasses", "Face Respirator", "Boots"],
-  additionalNotes: "HVAC Compressor Maintenance HVAC Compressor Maintenance",
-  detailedDescription:
-    "HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance",
-  beforePhotos: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
-  afterPhotos: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
-};
-
-const HARDCODED_JOBS: Record<
-  string,
-  {
-    title: string;
-    location: string;
-    priority: string;
-    status: "Assigned" | "In-Progress" | "Completed" | "Active";
-  }
-> = {
-  "99402": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-  "99403": { title: "Lighting Fix & Bulbs Replacement", location: "Main Assembly Floor", priority: "Medium", status: "Assigned" },
-  "99404": { title: "Bioreactor Calibration Check", location: "Lab Section 1", priority: "Low", status: "Assigned" },
-  "99405": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-  "99406": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Assigned" },
-  "99407": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Assigned" },
-  "99408": { title: "Routine Safety Inspection", location: "Main Assembly Floor", priority: "Low", status: "Assigned" },
-  "99410": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-  "99411": { title: "HVAC Evaporator Fan Cleanup", location: "Facility Area 4B", priority: "Medium", status: "Completed" },
-  "99412": { title: "Routine Safety Inspection", location: "Warehouse D", priority: "Low", status: "Completed" },
-  "99413": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-  "99414": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Completed" },
-  "99415": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Completed" },
-  "99420": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-  "99421": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Medium", status: "In-Progress" },
-  "99422": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "In-Progress" },
-  "99423": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-  "99424": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "In-Progress" },
-  "99425": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "In-Progress" },
-  "99430": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Active" },
-  "99431": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Medium", status: "Active" },
-  "99432": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "Low", status: "Active" },
-  "99433": { title: "HVAC Compressor Maintenance", location: "Facility Area 4B", priority: "High", status: "Active" },
-};
 
 /* ─── Status badge config ─── */
 const STATUS_BADGE: Record<
@@ -246,7 +171,7 @@ export default function CustomerRequestDetailPage() {
     setIsEditModalOpen(true);
   };
 
-  const fetchJobDetail = async () => {
+  const fetchJobDetail = useCallback(async () => {
     if (!params?.id) return;
     const id = params.id as string;
     try {
@@ -291,7 +216,7 @@ export default function CustomerRequestDetailPage() {
       console.error("Fetch request error:", err);
       setError("Connection to backend server failed.");
     }
-  };
+  }, [params]);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -413,7 +338,7 @@ export default function CustomerRequestDetailPage() {
     };
 
     initPage();
-  }, [params]);
+  }, [params, fetchJobDetail]);
 
   if (isLoading) {
     return (

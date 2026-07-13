@@ -122,7 +122,7 @@ export default function SignupPage() {
       } else {
         router.push("/customer/overview");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Signup error:", err);
       setError("Server connection failed. Make sure the backend is running.");
       setIsLoading(false);

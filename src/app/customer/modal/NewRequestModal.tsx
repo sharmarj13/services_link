@@ -39,7 +39,7 @@ export interface CustomerRequestDetail {
 interface NewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (createdRequest: any) => void;
+  onSubmit: (createdRequest: Record<string, unknown>) => void;
   siteId: string;
 }
 

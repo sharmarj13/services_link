@@ -65,7 +65,7 @@ export default function LoginPage() {
       } else {
         router.push("/customer/overview");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login request error:", err);
       setError("Server connection failed. Make sure the backend is running.");
       setIsLoading(false);
