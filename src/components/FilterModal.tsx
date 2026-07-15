@@ -1,15 +1,54 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { FiChevronDown, FiCalendar } from "react-icons/fi";
+import { apiFetch } from "@/lib/apiFetch";
+
+export interface FilterOptions {
+  department: string;
+  priority: string;
+  startDate: string;
+  endDate: string;
+}
 
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: () => void;
+  onApply: (filters: FilterOptions) => void;
+  siteId?: string;
+  currentFilters?: FilterOptions;
 }
 
-export default function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
+export default function FilterModal({ isOpen, onClose, onApply, siteId, currentFilters }: FilterModalProps) {
+  const [departmentsList, setDepartmentsList] = useState<{id: string, name: string}[]>([]);
+  const [isFetchingDepts, setIsFetchingDepts] = useState(false);
+
+  const [department, setDepartment] = useState(currentFilters?.department || "All departments");
+  const [priority, setPriority] = useState(currentFilters?.priority || "All priorities");
+  const [startDate, setStartDate] = useState(currentFilters?.startDate || "");
+  const [endDate, setEndDate] = useState(currentFilters?.endDate || "");
+
+  // Fetch departments when modal opens
+  useEffect(() => {
+    if (isOpen && siteId) {
+      const fetchDepartments = async () => {
+        setIsFetchingDepts(true);
+        try {
+          const res = await apiFetch(`/api/sites/${siteId}/departments`);
+          if (res.ok) {
+            const data = await res.json();
+            setDepartmentsList(data.data || []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch departments", err);
+        } finally {
+          setIsFetchingDepts(false);
+        }
+      };
+      fetchDepartments();
+    }
+  }, [isOpen, siteId]);
+
   // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -42,11 +81,27 @@ export default function FilterModal({ isOpen, onClose, onApply }: FilterModalPro
             <div className="space-y-1.5">
               <label className="block text-[13px] font-medium text-gray-600">Department</label>
               <div className="relative">
-                <select className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white">
-                  <option>All departments</option>
-                  <option>Maintenance</option>
-                  <option>Plumbing</option>
-                  <option>Electrical</option>
+                <select 
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white disabled:opacity-50" 
+                  disabled={isFetchingDepts}
+                >
+                  {isFetchingDepts ? (
+                    <option>Loading departments...</option>
+                  ) : departmentsList.length === 0 ? (
+                    <>
+                      <option>All departments</option>
+                      <option disabled>No departments found</option>
+                    </>
+                  ) : (
+                    <>
+                      <option>All departments</option>
+                      {departmentsList.map(dept => (
+                        <option key={dept.id} value={dept.name}>{dept.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
                 <FiChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
               </div>
@@ -56,7 +111,11 @@ export default function FilterModal({ isOpen, onClose, onApply }: FilterModalPro
             <div className="space-y-1.5">
               <label className="block text-[13px] font-medium text-gray-600">Priority</label>
               <div className="relative">
-                <select className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white">
+                <select 
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors cursor-pointer bg-white"
+                >
                   <option>All priorities</option>
                   <option>Low</option>
                   <option>Medium</option>
@@ -72,11 +131,11 @@ export default function FilterModal({ isOpen, onClose, onApply }: FilterModalPro
               <label className="block text-[13px] font-medium text-gray-600">Start Date</label>
               <div className="relative">
                 <input
-                  type="text"
-                  placeholder="Pick a date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl pl-4 pr-10 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors placeholder:text-gray-400"
                 />
-                <FiCalendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
               </div>
             </div>
 
@@ -85,11 +144,11 @@ export default function FilterModal({ isOpen, onClose, onApply }: FilterModalPro
               <label className="block text-[13px] font-medium text-gray-600">End Date</label>
               <div className="relative">
                 <input
-                  type="text"
-                  placeholder="Pick a date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl pl-4 pr-10 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors placeholder:text-gray-400"
                 />
-                <FiCalendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
               </div>
             </div>
           </div>
@@ -99,16 +158,16 @@ export default function FilterModal({ isOpen, onClose, onApply }: FilterModalPro
         <div className="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 flex gap-3 sm:gap-4 shrink-0 bg-white">
           <button
             onClick={onClose}
-            className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[14px] rounded-xl transition-colors text-center"
+            className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[14px] rounded-xl transition-colors text-center cursor-pointer"
           >
             Close
           </button>
           <button
             onClick={() => {
-              onApply();
+              onApply({ department, priority, startDate, endDate });
               onClose();
             }}
-            className="flex-1 py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-xl transition-colors text-center shadow-sm"
+            className="flex-1 py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-xl transition-colors text-center shadow-sm cursor-pointer"
           >
             Filter
           </button>

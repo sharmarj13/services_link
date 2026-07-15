@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FiCalendar, FiTrash2, FiCheck } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
+import { apiFetch } from "@/lib/apiFetch";
 import { API_BASE_URL } from "@/config";
 
 export interface CustomerRequestDetail {
@@ -54,14 +55,77 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
   const [category, setCategory] = useState("Cleaning");
   const [department, setDepartment] = useState("None");
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingDepts, setIsFetchingDepts] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState<{id: string, name: string}[]>([]);
+
+  useEffect(() => {
+    if (isOpen && siteId) {
+      const fetchDepartments = async () => {
+        setIsFetchingDepts(true);
+        try {
+          const res = await apiFetch(`/api/sites/${siteId}/departments`);
+          if (res.ok) {
+            const data = await res.json();
+            setDepartmentsList(data.data || []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch departments", err);
+        } finally {
+          setIsFetchingDepts(false);
+        }
+      };
+      fetchDepartments();
+    }
+  }, [isOpen, siteId]);
 
   if (!isOpen) return null;
 
   const handlePhotoUpload = () => {
-    // Simulated upload - matching the design
-    setUploadedPhotos((prev) => [...prev, "/images/onbording-background.png"]);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError("");
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await apiFetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Assuming backend running locally on 5000 and proxy handles /api/upload
+          // But for static /uploads it might need API_BASE_URL
+          setUploadedPhotos((prev) => [...prev, `${API_BASE_URL}${data.url}`]);
+        } else {
+          console.error("Failed to upload photo");
+          setError("Failed to upload one or more photos.");
+        }
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError("An error occurred while uploading photos.");
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -104,14 +168,10 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
     try {
       const resolvedLocation =
         siteLocation.trim() ||
-        (department !== "None" ? `${department} Floor` : "Facility Area 1A");
+        (department !== "None" ? `${department} Floor` : null);
 
-      const response = await fetch(`${API_BASE_URL}/api/work-requests`, {
+      const response = await apiFetch("/api/work-requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({
           siteId: siteId,
           title: reqTitle.trim(),
@@ -122,7 +182,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
           scopeOfWork: scopeOfWork.trim() || detailedDesc.trim(),
           referencePhotoUrls: uploadedPhotos.length > 0 ? uploadedPhotos : null,
           location: resolvedLocation,
-          department: department !== "None" ? department : "General",
+          department: department !== "None" ? department : null,
           additionalNotes: additionalNotes.trim()
         })
       });
@@ -268,6 +328,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
                 <option>Low</option>
                 <option>Medium</option>
                 <option>High</option>
+                <option>Urgent</option>
               </select>
             </div>
 
@@ -282,7 +343,10 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
               >
                 <option>Cleaning</option>
                 <option>Maintenance</option>
-                <option>Safety</option>
+                <option>Repairs</option>
+                <option>Landscaping</option>
+                <option>Security</option>
+                <option>Other</option>
               </select>
             </div>
           </div>
@@ -295,48 +359,70 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-955 outline-none focus:border-[#D12031] focus:ring-1 focus:ring-[#D12031] transition-all"
+              disabled={isFetchingDepts}
+              className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-955 outline-none focus:border-[#D12031] focus:ring-1 focus:ring-[#D12031] transition-all disabled:opacity-50"
             >
-              <option>None</option>
-              <option>Kitchen</option>
-              <option>Lobby</option>
-              <option>Restrooms</option>
-              <option>Maintenance</option>
-              <option>Bedroom</option>
+              {isFetchingDepts ? (
+                <option value="None">Loading departments...</option>
+              ) : departmentsList.length === 0 ? (
+                <>
+                  <option value="None">None</option>
+                  <option disabled>No departments found</option>
+                </>
+              ) : (
+                <>
+                  <option value="None">None</option>
+                  {departmentsList.map((dept) => (
+                    <option key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
-          {/* Photo Upload zone */}
-          <div className="space-y-2">
-            <label className="block text-[13px] font-bold text-gray-700">
-              Attach Reference Photos (Optional)
-            </label>
-            <div
-              onClick={handlePhotoUpload}
-              className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-2xl p-6 bg-red-50/5 hover:bg-red-50/10 cursor-pointer text-center flex flex-col items-center justify-center transition-all group"
-            >
-              <HiOutlineUpload size={28} className="text-[#D12031] mb-2 group-hover:scale-110 transition-transform duration-200" />
-              <span className="text-xs font-bold text-gray-800">Click to upload or drag and drop</span>
-            </div>
-
-            {uploadedPhotos.length > 0 && (
-              <div className="grid grid-cols-5 gap-2.5 pt-2">
-                {uploadedPhotos.map((src, i) => (
-                  <div key={i} className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-xs group/item">
-                    <Image src={src} alt="Uploaded" fill className="object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(i)}
-                      className="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 flex items-center justify-center text-white transition-opacity duration-150 rounded-xl border-none cursor-pointer"
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
-                  </div>
-                ))}
+            {/* Photo Upload zone */}
+            <div className="space-y-2">
+              <label className="block text-[13px] font-bold text-gray-700">
+                Attach Reference Photos (Optional)
+              </label>
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                multiple
+                className="hidden" 
+              />
+              <div
+                onClick={handlePhotoUpload}
+                className={`border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-2xl p-6 bg-red-50/5 hover:bg-red-50/10 cursor-pointer text-center flex flex-col items-center justify-center transition-all group ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <HiOutlineUpload size={28} className="text-[#D12031] mb-2 group-hover:scale-110 transition-transform duration-200" />
+                <span className="text-xs font-bold text-gray-800">
+                  {isUploading ? "Uploading..." : "Click to upload or drag and drop"}
+                </span>
               </div>
-            )}
-          </div>
-        </form>
+
+              {uploadedPhotos.length > 0 && (
+                <div className="grid grid-cols-5 gap-2.5 pt-2">
+                  {uploadedPhotos.map((src, i) => (
+                    <div key={i} className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-xs group/item">
+                      <img src={src} alt="Uploaded" className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(i)}
+                        className="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 flex items-center justify-center text-white transition-opacity duration-150 rounded-xl border-none cursor-pointer"
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </form>
 
         {/* Modal Actions */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">

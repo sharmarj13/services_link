@@ -6,7 +6,7 @@ import {
   FiSearch, FiFilter, FiDownload, FiPlus, FiChevronDown, FiCheck,
 } from "react-icons/fi";
 import CustomerLayout from "@/components/CustomerLayout";
-import FilterModal from "@/components/FilterModal";
+import FilterModal, { FilterOptions } from "@/components/FilterModal";
 import NewRequestModal from "@/app/customer/modal/NewRequestModal";
 import { API_BASE_URL } from "@/config";
 
@@ -18,15 +18,7 @@ interface SiteUserContext {
 type Status = "All" | "Assigned" | "In-Progress" | "Active" | "Completed";
 type Priority = "High" | "Medium" | "Low";
 
-interface Notice {
-  jobId: string;
-  noticeType: string;
-  priority: string;
-  description: string;
-  actionRequired: boolean;
-  date: string;
-  time: string;
-}
+
 
 interface JobRequest {
   id: string;
@@ -34,6 +26,8 @@ interface JobRequest {
   location: string;
   priority: Priority;
   status: Exclude<Status, "All">;
+  department?: string;
+  createdAt?: string;
 }
 
 const STATUS_OPTIONS: Status[] = ["All", "Assigned", "In-Progress", "Active", "Completed"];
@@ -59,12 +53,23 @@ const STATUS_BORDER: Record<string, string> = {
 };
 
 export default function CustomerRequestsPage() {
-  const [activeStatus, setActiveStatus] = useState<Status>("Assigned");
+  const [activeStatus, setActiveStatus] = useState<Status>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  // Debounce search query so API isn't spammed while typing
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 600);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const [allJobs, setAllJobs] = useState<JobRequest[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
+
 
   /* ── Modal states ── */
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,12 +77,14 @@ export default function CustomerRequestsPage() {
   const [userContext, setUserContext] = useState<SiteUserContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeFilters, setActiveFilters] = useState<FilterOptions | null>(null);
 
   const mapStatus = (backendStatus: string): Exclude<Status, "All"> => {
     switch (backendStatus) {
       case "completed":
         return "Completed";
       case "in-progress":
+      case "in_progress":
         return "In-Progress";
       case "started":
         return "Active";
@@ -94,9 +101,32 @@ export default function CustomerRequestsPage() {
     return "Medium";
   };
 
-  const fetchWorkRequests = useCallback(async (siteId: string) => {
+  const fetchWorkRequests = useCallback(async (siteId: string, filtersToApply?: FilterOptions | null, searchToApply?: string, statusToApply: string = "All") => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sites/${siteId}/work-requests`, {
+      setIsLoading(true);
+      const queryParams = new URLSearchParams();
+      
+      // Map UI status to Backend status
+      let backendStatus = "";
+      if (statusToApply === "Assigned") backendStatus = "pending";
+      else if (statusToApply === "In-Progress") backendStatus = "in_progress";
+      else if (statusToApply === "Active") backendStatus = "active";
+      else if (statusToApply === "Completed") backendStatus = "completed";
+
+      if (backendStatus) queryParams.append("status", backendStatus);
+
+      if (searchToApply) queryParams.append("search", searchToApply);
+      if (filtersToApply?.department && filtersToApply.department !== "All departments") {
+        queryParams.append("department", filtersToApply.department);
+      }
+      if (filtersToApply?.priority && filtersToApply.priority !== "All priorities") {
+        queryParams.append("priority", filtersToApply.priority);
+      }
+      if (filtersToApply?.startDate) queryParams.append("startDate", filtersToApply.startDate);
+      if (filtersToApply?.endDate) queryParams.append("endDate", filtersToApply.endDate);
+
+      const url = `${API_BASE_URL}/api/sites/${siteId}/work-requests?${queryParams.toString()}`;
+      const response = await fetch(url, {
         credentials: "include",
       });
       if (response.ok) {
@@ -105,15 +135,19 @@ export default function CustomerRequestsPage() {
         const mapped = list.map((r: Record<string, unknown>) => ({
           id: r.id as string,
           title: r.title as string,
-          location: (r.location as string) || "Facility Area 1A",
+          location: (r.location as string) || "Not specified",
           priority: mapPriority((r.priority as string) || ""),
           status: mapStatus((r.status as string) || ""),
+          department: r.department as string,
+          createdAt: r.createdAt as string,
         }));
         setAllJobs(mapped);
       }
     } catch (err) {
       console.error("Error fetching requests:", err);
       setError("Failed to sync work requests from the server.");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -141,33 +175,10 @@ export default function CustomerRequestsPage() {
           siteId,
         });
 
-        await fetchWorkRequests(siteId);
-
-        // Load static notices fallback
-        setNotices([
-          {
-            jobId: "99410",
-            noticeType: "Maintenance Issue",
-            priority: "High",
-            description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
-            actionRequired: true,
-            date: "Jun 24, 2026",
-            time: "11:30 AM"
-          },
-          {
-            jobId: "99411",
-            noticeType: "Safety Hazard",
-            priority: "Urgent",
-            description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
-            actionRequired: true,
-            date: "Jun 25, 2026",
-            time: "09:45 AM"
-          }
-        ]);
+        await fetchWorkRequests(siteId, activeFilters, debouncedSearchQuery, activeStatus);
       } catch (err) {
         console.error("Init requests page error:", err);
         setError("Database server is offline or unreachable.");
-      } finally {
         setIsLoading(false);
       }
     };
@@ -176,36 +187,54 @@ export default function CustomerRequestsPage() {
 
   const handleModalSubmit = async () => {
     if (userContext?.siteId) {
-      await fetchWorkRequests(userContext.siteId);
+      await fetchWorkRequests(userContext.siteId, activeFilters, debouncedSearchQuery, activeStatus);
     }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
 
-  const filteredJobs = allJobs.filter((job) => {
-    const matchesStatus = activeStatus === "All" || job.status === activeStatus;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      job.title.toLowerCase().includes(q) ||
-      job.id.includes(q) ||
-      job.location.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
-  });
+  // Re-fetch when filters, debounced search, or STATUS changes
+  useEffect(() => {
+    if (userContext?.siteId) {
+      // Immediate fetch when these dependencies change (no artificial delay for filters/status)
+      fetchWorkRequests(userContext.siteId, activeFilters, debouncedSearchQuery, activeStatus);
+    }
+  }, [debouncedSearchQuery, activeFilters, activeStatus, userContext?.siteId, fetchWorkRequests]);
 
-  if (isLoading) {
-    return (
-      <CustomerLayout title="Work Requests" subtitle="Loading work requests...">
-        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-          <svg className="animate-spin h-10 w-10 text-[#D12031]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-bold text-gray-500">Syncing live requests database...</span>
-        </div>
-      </CustomerLayout>
-    );
-  }
+  const filteredJobs = allJobs; // Backend now perfectly filters everything including exact status
+
+  const handleExportCSV = () => {
+    if (filteredJobs.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+    
+    const headers = ["ID", "Title", "Location", "Priority", "Status", "Department", "Created At"];
+    const csvRows = [];
+    csvRows.push(headers.join(","));
+    
+    for (const job of filteredJobs) {
+      const values = [
+        job.id,
+        `"${job.title.replace(/"/g, '""')}"`,
+        `"${job.location.replace(/"/g, '""')}"`,
+        job.priority,
+        job.status,
+        `"${(job.department || "").replace(/"/g, '""')}"`,
+        job.createdAt ? new Date(job.createdAt).toLocaleString() : ""
+      ];
+      csvRows.push(values.join(","));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `work_requests_export_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <CustomerLayout
@@ -276,7 +305,9 @@ export default function CustomerRequestsPage() {
             <span>Filter</span>
           </button>
 
-          <button className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
             <FiDownload size={15} />
             <span>Export</span>
           </button>
@@ -291,42 +322,18 @@ export default function CustomerRequestsPage() {
         </div>
       </div>
 
-      {/* ── Notices (Issues list) ────────────────────────── */}
-      {notices.length > 0 && activeStatus === "All" && (
-        <div className="space-y-4 mb-6">
-          {notices.map((n, idx) => (
-            <div
-              key={idx}
-              className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-extrabold text-[#b45309] bg-[#fef3c7] px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {n.noticeType}
-                  </span>
-                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {n.priority}
-                  </span>
-                </div>
-                <p className="text-sm font-medium text-gray-700 leading-relaxed max-w-3xl">
-                  {n.description}
-                </p>
-                <div className="text-[11px] text-gray-400 font-semibold pt-1">
-                  Posted on {n.date} at {n.time} • Job ID #{n.jobId}
-                </div>
-              </div>
-              {n.actionRequired && (
-                <button className="self-start md:self-center px-4.5 py-2.5 bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-bold rounded-xl transition-colors border-none cursor-pointer shrink-0">
-                  Request Action
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+
 
       {/* ── Requests grid/feed ──────────────────────────── */}
-      {filteredJobs.length > 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4 bg-white border border-gray-200 rounded-2xl p-6">
+          <svg className="animate-spin h-8 w-8 text-[#D12031]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-xs font-bold text-gray-500">Syncing live requests database...</span>
+        </div>
+      ) : filteredJobs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredJobs.map((job) => (
             <div
@@ -341,7 +348,7 @@ export default function CustomerRequestsPage() {
                 </div>
 
                 <div className="text-[12px] text-gray-450 font-semibold">
-                  {job.location} • ID #{job.id}
+                  {job.location} • ID #{job.id.slice(0, 8).toUpperCase()}
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
@@ -377,7 +384,12 @@ export default function CustomerRequestsPage() {
       <FilterModal
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
-        onApply={() => setIsFilterOpen(false)}
+        onApply={(filters) => {
+          setActiveFilters(filters);
+          setIsFilterOpen(false);
+        }}
+        currentFilters={activeFilters || undefined}
+        siteId={userContext?.siteId || ""}
       />
 
       {/* Close dropdown on outside click */}

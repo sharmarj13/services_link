@@ -16,6 +16,7 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface CustomerLayoutProps {
   children: React.ReactNode;
@@ -47,6 +48,31 @@ export default function CustomerLayout({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const [userName, setUserName] = useState("Loading...");
+  const [userEmail, setUserEmail] = useState("...");
+  const [userInitials, setUserInitials] = useState("");
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await apiFetch(`/api/auth/me`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            const first = data.user.firstName || "";
+            const last = data.user.lastName || "";
+            setUserName(`${first} ${last}`.trim() || "User");
+            setUserEmail(data.user.email || "");
+            setUserInitials(`${first[0] || ""}${last[0] || ""}`.toUpperCase() || "U");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch layout user info:", err);
+      }
+    };
+    fetchUser();
+  }, []);
+
   const menuItems = [
     { name: "Work Overview", path: "/customer/overview", icon: <FiGrid size={18} /> },
     { name: "My Request", path: "/customer/requests", icon: <FiClipboard size={18} /> },
@@ -58,9 +84,8 @@ export default function CustomerLayout({
   const handleSignOut = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await apiFetch(`/api/auth/logout`, {
         method: "POST",
-        credentials: "include"
       });
     } catch (err) {
       console.error("Signout error:", err);
@@ -155,11 +180,11 @@ export default function CustomerLayout({
               className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none"
             >
               <div className="text-right hidden sm:block">
-                <div className="text-[14px] font-bold text-gray-900">Maurice Maldonado</div>
-                <div className="text-[11px] text-gray-500">maurice.maldonado@gmail.com</div>
+                <div className="text-[14px] font-bold text-gray-900">{userName}</div>
+                <div className="text-[11px] text-gray-500">{userEmail}</div>
               </div>
               <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
-                <span className="text-sm font-bold text-gray-700">MM</span>
+                <span className="text-sm font-bold text-gray-700">{userInitials}</span>
               </div>
               <FiChevronDown
                 size={16}
@@ -174,7 +199,7 @@ export default function CustomerLayout({
               <div className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-[dropdownFadeIn_0.15s_ease]">
                 {/* Profile header inside dropdown */}
                 <div className="px-4 py-3.5 border-b border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">Maurice Maldonado</div>
+                  <div className="text-sm font-bold text-gray-900">{userName}</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">Customer</div>
                 </div>
 

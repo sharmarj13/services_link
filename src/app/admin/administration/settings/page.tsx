@@ -184,7 +184,7 @@ export default function AdministrationSettingsPage() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <FiUserPlus className="text-[#D12031]" size={18} />
-                <h3 className="text-sm font-bold text-gray-900">Provision Super Admin Account</h3>
+                <h3 className="text-sm font-bold text-gray-900">Create New User</h3>
               </div>
               <p className="text-[11px] text-gray-400 font-semibold mb-5">Create accounts to help manage operations and dispatching tasks.</p>
 
@@ -249,8 +249,9 @@ export default function AdministrationSettingsPage() {
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-850 outline-none focus:border-[#D12031]"
                     >
                       <option>Super Admin</option>
-                      <option>Operations Lead</option>
-                      <option>Dispatcher</option>
+                      <option>Admin</option>
+                      <option>Technician</option>
+                      <option>Customer</option>
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -286,7 +287,7 @@ export default function AdministrationSettingsPage() {
                   className="w-full bg-[#D12031] hover:bg-[#b91c2c] text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm"
                 >
                   <FiUserPlus size={15} />
-                  <span>Create Admin User</span>
+                  <span>Create User</span>
                 </button>
               </form>
             </div>

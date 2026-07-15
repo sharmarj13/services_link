@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import CustomerLayout from "@/components/CustomerLayout";
+import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
+import { useRouter } from "next/navigation";
 import {
   FiUser,
   FiMail,
@@ -14,9 +17,13 @@ import {
 
 export default function CustomerSettingsPage() {
   /* ── Profile fields ── */
-  const [firstName, setFirstName] = useState("John");
-  const [lastName, setLastName] = useState("Doe");
-  const [email, setEmail] = useState("user@gmail.com");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   /* ── Password fields ── */
   const [currentPwd, setCurrentPwd] = useState("");
@@ -28,39 +35,127 @@ export default function CustomerSettingsPage() {
 
   /* ── Toast message ── */
   const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMsg(""), 3500);
   };
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await apiFetch(`/api/auth/me`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setFirstName(data.user.firstName || "");
+            setLastName(data.user.lastName || "");
+            setEmail(data.user.email || "");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      alert("All profile fields are required.");
+      showToast("All profile fields are required.", "error");
       return;
     }
-    showToast("Profile settings saved successfully!");
+    
+    setIsSavingProfile(true);
+    try {
+      const res = await apiFetch(`/api/users/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({ firstName, lastName, email })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Profile settings saved successfully!");
+      } else {
+        showToast(data.message || "Failed to save profile.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Network error. Try again.", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPwd || !newPwd || !confirmPwd) {
-      alert("Please fill in all password fields.");
+      showToast("Please fill in all password fields.", "error");
       return;
     }
     if (newPwd !== confirmPwd) {
-      alert("New password and confirm password do not match.");
+      showToast("New password and confirm password do not match.", "error");
       return;
     }
-    setCurrentPwd("");
-    setNewPwd("");
-    setConfirmPwd("");
-    showToast("Password updated successfully!");
+    if (newPwd.length < 8) {
+      showToast("Password must be at least 8 characters.", "error");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      const res = await apiFetch(`/api/auth/change-password`, {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentPwd("");
+        setNewPwd("");
+        setConfirmPwd("");
+        showToast("Password updated successfully!");
+      } else {
+        showToast(data.message || "Failed to update password.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Network error. Try again.", "error");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   /* ── Modals ── */
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await apiFetch(`/api/auth/account`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setShowDeleteModal(false);
+        router.push("/login");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to delete account.", "error");
+        setIsDeleting(false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Network error. Try again.", "error");
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <CustomerLayout
@@ -82,69 +177,90 @@ export default function CustomerSettingsPage() {
 
           {/* Form body */}
           <form onSubmit={handleProfileSave} className="px-6 py-7 space-y-5">
-            {/* First Name + Last Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-[13px] font-semibold text-gray-700">
-                  First Name
-                </label>
-                <div className="relative">
-                  <FiUser
-                    size={15}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
-                  />
+            {isLoading ? (
+              <div className="animate-pulse space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                  <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                </div>
+                <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                <div className="flex justify-end pt-1">
+                  <div className="h-10 w-32 bg-gray-200 rounded-xl" />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-[13px] font-semibold text-gray-700">
-                  Last Name
-                </label>
-                <div className="relative">
-                  <FiUser
-                    size={15}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
-                  />
+            ) : (
+              <>
+                {/* First Name + Last Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="block text-[13px] font-semibold text-gray-700">
+                      First Name
+                    </label>
+                    <div className="relative">
+                      <FiUser
+                        size={15}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[13px] font-semibold text-gray-700">
+                      Last Name
+                    </label>
+                    <div className="relative">
+                      <FiUser
+                        size={15}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Email */}
-            <div className="space-y-1.5">
-              <label className="block text-[13px] font-semibold text-gray-700">
-                Email <span className="text-[#D12031]">*</span>
-              </label>
-              <div className="relative">
-                <FiMail
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
-                />
-              </div>
-            </div>
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700">
+                    Email <span className="text-[#D12031]">*</span>
+                  </label>
+                  <div className="relative">
+                    <FiMail
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                    />
+                  </div>
+                </div>
 
-            {/* Save */}
-            <div className="flex justify-end pt-1">
-              <button type="submit" className="px-7 py-3 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-xl cursor-pointer transition-colors shadow-sm border-none">
-                Save Changes
-              </button>
-            </div>
+                {/* Save */}
+                <div className="flex justify-end pt-1">
+                  <button 
+                    type="submit" 
+                    disabled={isSavingProfile}
+                    className={`px-7 py-3 bg-[#D12031] text-white font-bold text-[14px] rounded-xl transition-colors shadow-sm border-none ${
+                      isSavingProfile ? "opacity-70 cursor-not-allowed" : "hover:bg-[#a81828] cursor-pointer"
+                    }`}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
+            )}
           </form>
         </div>
 
@@ -245,8 +361,14 @@ export default function CustomerSettingsPage() {
 
             {/* Change Password button */}
             <div className="flex justify-end pt-1">
-              <button type="submit" className="px-7 py-3 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-xl cursor-pointer transition-colors shadow-sm border-none">
-                Change Password
+              <button 
+                type="submit" 
+                disabled={isSavingPassword}
+                className={`px-7 py-3 bg-[#D12031] text-white font-bold text-[14px] rounded-xl transition-colors shadow-sm border-none ${
+                  isSavingPassword ? "opacity-70 cursor-not-allowed" : "hover:bg-[#a81828] cursor-pointer"
+                }`}
+              >
+                {isSavingPassword ? "Updating..." : "Change Password"}
               </button>
             </div>
           </form>
@@ -298,11 +420,12 @@ export default function CustomerSettingsPage() {
                   Close
                 </button>
                 <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-2xl font-bold text-[14px] flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm"
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting}
+                  className={`flex-1 py-3.5 bg-[#D12031] text-white rounded-2xl font-bold text-[14px] flex items-center justify-center gap-2 transition-colors border-none shadow-sm ${isDeleting ? "opacity-70 cursor-not-allowed" : "hover:bg-[#a81828] cursor-pointer"}`}
                 >
                   <FiTrash2 size={16} />
-                  Delete
+                  {isDeleting ? "Deleting..." : "Delete"}
                 </button>
               </div>
             </div>
@@ -312,8 +435,12 @@ export default function CustomerSettingsPage() {
 
       {/* Toast message */}
       {toastMsg && (
-        <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border border-emerald-500/20 animate-toast-in">
-          <FiCheck size={18} className="text-emerald-100" />
+        <div className={`fixed top-24 right-6 z-50 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border animate-toast-in ${toastType === "success" ? "bg-emerald-600 border-emerald-500/20" : "bg-red-600 border-red-500/20"}`}>
+          {toastType === "success" ? (
+            <FiCheck size={18} className="text-emerald-100" />
+          ) : (
+            <FiUser size={18} className="text-red-100" />
+          )}
           <span>{toastMsg}</span>
         </div>
       )}
