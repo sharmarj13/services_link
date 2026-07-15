@@ -69,13 +69,14 @@ export default function CustomerOverviewPage() {
   const [userContext, setUserContext] = useState<UserContext | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [timeFilter, setTimeFilter] = useState("all");
 
   // Function to load all site dashboard details
-  const fetchDashboardData = async (siteId: string) => {
+  const fetchDashboardData = async (siteId: string, filter = "all") => {
     try {
       const [statsRes, compStatsRes, requestsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/sites/${siteId}/stats`, { credentials: "include" }),
-        fetch(`${API_BASE_URL}/api/sites/${siteId}/comprehensive-stats?timeFilter=all`, { credentials: "include" }),
+        fetch(`${API_BASE_URL}/api/sites/${siteId}/comprehensive-stats?timeFilter=${filter}`, { credentials: "include" }),
         fetch(`${API_BASE_URL}/api/sites/${siteId}/work-requests`, { credentials: "include" })
       ]);
 
@@ -126,13 +127,13 @@ export default function CustomerOverviewPage() {
         setRequestsList(mapped);
 
         // Find the active in-progress job
-        const currentActive = list.find((r: Record<string, unknown>) => r.status === "in-progress" || r.status === "started");
+        const currentActive = mapped.find((r: RequestItem) => r.status === "in_progress" || r.status === "started");
         if (currentActive) {
-          setActiveJob(currentActive as RequestItem);
+          setActiveJob(currentActive);
         } else {
-          const pendingReq = list.find((r: Record<string, unknown>) => r.status !== "completed");
+          const pendingReq = mapped.find((r: RequestItem) => r.status !== "completed");
           if (pendingReq) {
-            setActiveJob(pendingReq as RequestItem);
+            setActiveJob(pendingReq);
           } else {
             setActiveJob(null);
           }
@@ -184,9 +185,8 @@ export default function CustomerOverviewPage() {
   }, []);
 
   const handleModalSubmit = async () => {
-    // Reload dashboard list and counters dynamically
     if (userContext?.siteId) {
-      await fetchDashboardData(userContext.siteId);
+      await fetchDashboardData(userContext.siteId, timeFilter);
     }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
@@ -265,17 +265,19 @@ export default function CustomerOverviewPage() {
             <div className="relative inline-block self-start sm:self-center shrink-0">
               <select
                 id="select-analytics-scope"
-                defaultValue="All Time"
-                onChange={() => {
+                value={timeFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTimeFilter(val);
                   if (userContext?.siteId) {
-                    fetchDashboardData(userContext.siteId);
+                    fetchDashboardData(userContext.siteId, val);
                   }
                 }}
                 className="appearance-none bg-white border border-gray-200 rounded-lg pl-4 pr-10 py-2.5 text-xs font-semibold text-gray-800 cursor-pointer outline-none hover:bg-gray-50 transition-colors shadow-sm"
               >
-                <option value="All Time">All Time</option>
-                <option value="This Month">This Month</option>
-                <option value="This Week">This Week</option>
+                <option value="all">All Time</option>
+                <option value="month">This Month</option>
+                <option value="week">This Week</option>
               </select>
               <FiChevronDown size={14} className="text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -295,7 +297,9 @@ export default function CustomerOverviewPage() {
                 <span className="text-[32px] font-black text-gray-900 leading-none">
                   {String(totalCleanings).padStart(2, "0")}
                 </span>
-                <span className="text-[11px] font-semibold text-gray-800 mb-1">All Time</span>
+                <span className="text-[11px] font-semibold text-gray-800 mb-1">
+                  {timeFilter === "all" ? "All Time" : timeFilter === "month" ? "This Month" : "This Week"}
+                </span>
               </div>
             </div>
 
@@ -449,7 +453,7 @@ export default function CustomerOverviewPage() {
                       style={{ 
                         width: 
                           activeJob.status === "completed" ? "75%" :
-                          activeJob.status === "in-progress" ? "50%" :
+                          activeJob.status === "in_progress" ? "50%" :
                           activeJob.status === "started" ? "25%" : "0%"
                       }}
                     />
@@ -458,7 +462,7 @@ export default function CustomerOverviewPage() {
                       {STEP_LABELS.map((label, index) => {
                         const completed = 
                           activeJob.status === "completed" ? index <= 3 :
-                          activeJob.status === "in-progress" ? index <= 2 :
+                          activeJob.status === "in_progress" ? index <= 2 :
                           activeJob.status === "started" ? index <= 1 : index <= 0;
                           
                         return (
@@ -505,8 +509,8 @@ export default function CustomerOverviewPage() {
           </div>
 
           <div className="p-6 space-y-4">
-            {requestsList.length > 0 ? (
-              requestsList.map((req) => (
+            {requestsList.filter((req) => req.status !== "completed").length > 0 ? (
+              requestsList.filter((req) => req.status !== "completed").map((req) => (
                 <div
                   key={req.id}
                   className="border border-gray-200 border-l-[4px] border-l-[#D12031] rounded-xl p-6 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-md"
