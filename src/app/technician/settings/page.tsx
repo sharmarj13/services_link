@@ -1,16 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TechnicianLayout from "@/components/TechnicianLayout";
-import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiTrash2, FiCheck } from "react-icons/fi";
+import { apiFetch } from "@/lib/apiFetch";
+import { useRouter } from "next/navigation";
+import {
+  FiUser,
+  FiMail,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+  FiTrash2,
+  FiCheck,
+} from "react-icons/fi";
 
-export default function SettingsPage() {
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-
+export default function TechnicianSettingsPage() {
   /* ── Profile fields ── */
-  const [firstName, setFirstName] = useState("John");
-  const [lastName, setLastName] = useState("Doe");
-  const [email, setEmail] = useState("user@gmail.com");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   /* ── Password fields ── */
   const [currentPwd, setCurrentPwd] = useState("");
@@ -20,37 +32,122 @@ export default function SettingsPage() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  /* ── Toast message ── */
+  /* ── Toast ── */
   const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMsg(""), 3500);
   };
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  /* ── Delete modal ── */
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
+
+  /* ── Fetch user on mount ── */
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setFirstName(data.user.firstName || "");
+            setLastName(data.user.lastName || "");
+            setEmail(data.user.email || "");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  /* ── Handlers ── */
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      alert("All profile fields are required.");
+      showToast("All profile fields are required.", "error");
       return;
     }
-    showToast("Profile settings saved successfully!");
+    setIsSavingProfile(true);
+    try {
+      const res = await apiFetch("/api/users/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ firstName, lastName, email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Profile settings saved successfully!");
+        window.dispatchEvent(new Event("profileUpdated"));
+      } else {
+        showToast(data.message || "Failed to save profile.", "error");
+      }
+    } catch {
+      showToast("Network error. Try again.", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPwd || !newPwd || !confirmPwd) {
-      alert("Please fill in all password fields.");
+      showToast("Please fill in all password fields.", "error");
       return;
     }
     if (newPwd !== confirmPwd) {
-      alert("New password and confirm password do not match.");
+      showToast("New password and confirm password do not match.", "error");
       return;
     }
-    setCurrentPwd("");
-    setNewPwd("");
-    setConfirmPwd("");
-    showToast("Password updated successfully!");
+    if (newPwd.length < 8) {
+      showToast("Password must be at least 8 characters.", "error");
+      return;
+    }
+    setIsSavingPassword(true);
+    try {
+      const res = await apiFetch("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentPwd("");
+        setNewPwd("");
+        setConfirmPwd("");
+        showToast("Password updated successfully!");
+      } else {
+        showToast(data.message || "Failed to update password.", "error");
+      }
+    } catch {
+      showToast("Network error. Try again.", "error");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await apiFetch("/api/auth/account", { method: "DELETE" });
+      if (res.ok) {
+        setShowDeleteModal(false);
+        router.push("/login");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to delete account.", "error");
+        setIsDeleting(false);
+      }
+    } catch {
+      showToast("Network error. Try again.", "error");
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -58,230 +155,309 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="Manage your account settings and preferences"
     >
-      <div className="max-w-7xl space-y-6 sm:space-y-8 ">
+      <div className="max-w-7xl space-y-6">
 
-        {/* Profile Information */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+        {/* ════════ Profile Information ════════ */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Red header */}
           <div className="bg-[#D12031] px-6 py-5">
-            <h2 className="text-[16px] sm:text-[18px] font-bold text-white">Profile Information</h2>
-            <p className="text-[12px] sm:text-[13px] text-white/90 mt-1 font-medium">
+            <h2 className="text-white text-[17px] font-bold">
+              Profile Information
+            </h2>
+            <p className="text-white/80 text-[12px] font-medium mt-0.5">
               Update your personal information and email address
             </p>
           </div>
 
-          <form onSubmit={handleProfileSave} className="p-6 sm:p-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-              {/* First Name */}
-              <div className="space-y-2">
-                <label className="block text-[14px] font-medium text-gray-600">First Name</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <FiUser className="text-gray-500" size={18} />
+          {/* Form body */}
+          <form onSubmit={handleProfileSave} className="px-6 py-7 space-y-5">
+            {isLoading ? (
+              <div className="animate-pulse space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                  <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                </div>
+                <div className="h-12 bg-gray-200 rounded-xl w-full" />
+                <div className="flex justify-end pt-1">
+                  <div className="h-10 w-32 bg-gray-200 rounded-xl" />
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* First Name + Last Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="block text-[13px] font-semibold text-gray-700">
+                      First Name
+                    </label>
+                    <div className="relative">
+                      <FiUser
+                        size={15}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors shadow-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Last Name */}
-              <div className="space-y-2">
-                <label className="block text-[14px] font-medium text-gray-600">Last Name</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <FiUser className="text-gray-500" size={18} />
+                  <div className="space-y-1.5">
+                    <label className="block text-[13px] font-semibold text-gray-700">
+                      Last Name
+                    </label>
+                    <div className="relative">
+                      <FiUser
+                        size={15}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors shadow-sm"
-                  />
                 </div>
-              </div>
-            </div>
 
-            {/* Email */}
-            <div className="space-y-2 mb-8">
-              <label className="block text-[14px] font-medium text-gray-600">Email *</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FiMail className="text-gray-500" size={18} />
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700">
+                    Email <span className="text-[#D12031]">*</span>
+                  </label>
+                  <div className="relative">
+                    <FiMail
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-850 outline-none focus:border-[#D12031] transition-colors shadow-sm"
-                />
-              </div>
-            </div>
 
-            <div className="flex justify-end">
-              <button type="submit" className="bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] px-8 py-3.5 rounded-xl transition-all shadow-sm cursor-pointer border-none">
-                Save Changes
-              </button>
-            </div>
+                {/* Save */}
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className={`px-7 py-3 bg-[#D12031] text-white font-bold text-[14px] rounded-xl transition-colors shadow-sm border-none ${
+                      isSavingProfile
+                        ? "opacity-70 cursor-not-allowed"
+                        : "hover:bg-[#a81828] cursor-pointer"
+                    }`}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
+            )}
           </form>
         </div>
 
-        {/* Change Password */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+        {/* ════════ Change Password ════════ */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Red header */}
           <div className="bg-[#D12031] px-6 py-5">
-            <h2 className="text-[16px] sm:text-[18px] font-bold text-white">Change Password</h2>
-            <p className="text-[12px] sm:text-[13px] text-white/90 mt-1 font-medium">
+            <h2 className="text-white text-[17px] font-bold">
+              Change Password
+            </h2>
+            <p className="text-white/80 text-[12px] font-medium mt-0.5">
               Update your password to keep your account secure
             </p>
           </div>
 
-          <form onSubmit={handlePasswordSave} className="p-6 sm:p-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-              {/* Current Password */}
-              <div className="space-y-2">
-                <label className="block text-[14px] font-medium text-gray-600">Current Password</label>
+          {/* Form body */}
+          <form onSubmit={handlePasswordSave} className="px-6 py-7 space-y-5">
+            {/* Current + New Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <label className="block text-[13px] font-semibold text-gray-700">
+                  Current Password
+                </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <FiLock className="text-gray-500" size={18} />
-                  </div>
+                  <FiLock
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
                   <input
                     type={showCurrent ? "text" : "password"}
                     value={currentPwd}
                     onChange={(e) => setCurrentPwd(e.target.value)}
                     placeholder="Enter current password"
-                    className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors shadow-sm"
+                    className="w-full border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrent((v) => !v)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer border-none bg-transparent"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer border-none bg-transparent p-0"
                   >
-                    {showCurrent ? <FiEye className="text-gray-400 hover:text-gray-600 transition-colors" size={18} /> : <FiEyeOff className="text-gray-400 hover:text-gray-600 transition-colors" size={18} />}
+                    {showCurrent ? <FiEye size={15} /> : <FiEyeOff size={15} />}
                   </button>
                 </div>
               </div>
-
-              {/* New Password */}
-              <div className="space-y-2">
-                <label className="block text-[14px] font-medium text-gray-600">New Password</label>
+              <div className="space-y-1.5">
+                <label className="block text-[13px] font-semibold text-gray-700">
+                  New Password
+                </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <FiLock className="text-gray-500" size={18} />
-                  </div>
+                  <FiLock
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
                   <input
                     type={showNew ? "text" : "password"}
                     value={newPwd}
                     onChange={(e) => setNewPwd(e.target.value)}
                     placeholder="Enter new password"
-                    className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors shadow-sm"
+                    className="w-full border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNew((v) => !v)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer border-none bg-transparent"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer border-none bg-transparent p-0"
                   >
-                    {showNew ? <FiEye className="text-gray-400 hover:text-gray-600 transition-colors" size={18} /> : <FiEyeOff className="text-gray-400 hover:text-gray-600 transition-colors" size={18} />}
+                    {showNew ? <FiEye size={15} /> : <FiEyeOff size={15} />}
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Confirm New Password */}
-            <div className="space-y-2 mb-8">
-              <label className="block text-[14px] font-medium text-gray-600">Confirm New Password</label>
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-semibold text-gray-700">
+                Confirm New Password
+              </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FiLock className="text-gray-500" size={18} />
-                </div>
+                <FiLock
+                  size={15}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
                 <input
                   type={showConfirm ? "text" : "password"}
                   value={confirmPwd}
                   onChange={(e) => setConfirmPwd(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-[15px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors shadow-sm"
+                  className="w-full border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-[13px] text-gray-800 outline-none focus:border-[#D12031] transition-colors bg-white"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer border-none bg-transparent"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer border-none bg-transparent p-0"
                 >
-                  {showConfirm ? <FiEye className="text-gray-400 hover:text-gray-600 transition-colors" size={18} /> : <FiEyeOff className="text-gray-400 hover:text-gray-600 transition-colors" size={18} />}
+                  {showConfirm ? <FiEye size={15} /> : <FiEyeOff size={15} />}
                 </button>
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <button type="submit" className="bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] px-8 py-3.5 rounded-xl transition-all shadow-sm cursor-pointer border-none">
-                Change Password
+            {/* Change Password button */}
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={isSavingPassword}
+                className={`px-7 py-3 bg-[#D12031] text-white font-bold text-[14px] rounded-xl transition-colors shadow-sm border-none ${
+                  isSavingPassword
+                    ? "opacity-70 cursor-not-allowed"
+                    : "hover:bg-[#a81828] cursor-pointer"
+                }`}
+              >
+                {isSavingPassword ? "Updating..." : "Change Password"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Delete Account Button */}
+        {/* ════════ Delete Account ════════ */}
         <button
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="w-full bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[15px] py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer border-none"
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[15px] rounded-2xl cursor-pointer transition-colors shadow-sm border-none"
         >
           <FiTrash2 size={18} />
-          <span>Delete Account</span>
+          Delete Account
         </button>
-
       </div>
 
-      {/* Delete Account Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-[400px] overflow-hidden flex flex-col shadow-2xl relative">
-
-            {/* Modal Header */}
-            <div className="bg-[#D12031] pt-6 pb-4 px-6 text-center shrink-0">
-              <h2 className="text-[18px] sm:text-[20px] font-bold text-white">Delete Account</h2>
-              <p className="text-[12px] sm:text-[13px] text-white/90 mt-1.5 font-medium leading-relaxed">
+      {/* ════════ Delete Account Modal ════════ */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-sm px-4"
+          onClick={() => setShowDeleteModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl w-full max-w-[400px] overflow-hidden shadow-2xl animate-[modalSlideUp_0.22s_ease]"
+          >
+            {/* Modal header */}
+            <div className="bg-[#D12031] text-white text-center py-5 px-6">
+              <h2 className="text-[18px] font-bold">Delete Account</h2>
+              <p className="text-white/80 text-[12px] mt-1 font-medium">
                 Permanently delete your account and all associated data
               </p>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 sm:p-8 text-center">
-              <p className="text-[14px] text-gray-800 font-medium leading-relaxed">
-                <span className="text-[#D12031] font-bold">Warning : </span>
-                This action cannot be undone. All your data will be permanently deleted.
+            {/* Modal body */}
+            <div className="px-8 py-7">
+              <p className="text-[14px] text-gray-700 font-medium text-center leading-relaxed">
+                <span className="font-bold text-[#D12031]">Warning :</span>{" "}
+                This action cannot be undone.
+                <br />
+                All your data will be permanently deleted.
               </p>
-            </div>
 
-            {/* Modal Actions */}
-            <div className="px-6 sm:px-8 pb-6 sm:pb-8 flex gap-3 sm:gap-4">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[14px] rounded-xl transition-colors shadow-sm cursor-pointer border-none"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer border-none"
-              >
-                <FiTrash2 size={16} />
-                <span>Delete</span>
-              </button>
+              {/* Buttons */}
+              <div className="flex gap-4 mt-7">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-3.5 bg-gray-100 text-gray-800 rounded-2xl font-bold text-[14px] hover:bg-gray-200 transition-colors cursor-pointer border-none"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting}
+                  className={`flex-1 py-3.5 bg-[#D12031] text-white rounded-2xl font-bold text-[14px] flex items-center justify-center gap-2 transition-colors border-none shadow-sm ${
+                    isDeleting
+                      ? "opacity-70 cursor-not-allowed"
+                      : "hover:bg-[#a81828] cursor-pointer"
+                  }`}
+                >
+                  <FiTrash2 size={16} />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* Toast message */}
+      {/* Toast */}
       {toastMsg && (
-        <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border border-emerald-500/20 animate-toast-in">
-          <FiCheck size={18} className="text-emerald-100" />
+        <div
+          className={`fixed top-24 right-6 z-50 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border animate-toast-in ${
+            toastType === "success"
+              ? "bg-emerald-600 border-emerald-500/20"
+              : "bg-red-600 border-red-500/20"
+          }`}
+        >
+          {toastType === "success" ? (
+            <FiCheck size={18} className="text-emerald-100" />
+          ) : (
+            <FiUser size={18} className="text-red-100" />
+          )}
           <span>{toastMsg}</span>
         </div>
       )}
 
       <style>{`
+        @keyframes modalSlideUp {
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
         @keyframes toastIn {
           from { opacity: 0; transform: translateY(-10px); }
           to   { opacity: 1; transform: translateY(0); }

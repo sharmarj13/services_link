@@ -81,6 +81,7 @@ export default function CustomerSettingsPage() {
       const data = await res.json();
       if (res.ok) {
         showToast("Profile settings saved successfully!");
+        window.dispatchEvent(new Event("profileUpdated"));
       } else {
         showToast(data.message || "Failed to save profile.", "error");
       }

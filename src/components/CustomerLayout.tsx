@@ -48,12 +48,14 @@ export default function CustomerLayout({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const [userName, setUserName] = useState("Loading...");
-  const [userEmail, setUserEmail] = useState("...");
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [userInitials, setUserInitials] = useState("");
+  const [isUserLoading, setIsUserLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
+      setIsUserLoading(true);
       try {
         const res = await apiFetch(`/api/auth/me`);
         if (res.ok) {
@@ -68,9 +70,14 @@ export default function CustomerLayout({
         }
       } catch (err) {
         console.error("Failed to fetch layout user info:", err);
+      } finally {
+        setIsUserLoading(false);
       }
     };
     fetchUser();
+    
+    window.addEventListener("profileUpdated", fetchUser);
+    return () => window.removeEventListener("profileUpdated", fetchUser);
   }, []);
 
   const menuItems = [
@@ -179,19 +186,31 @@ export default function CustomerLayout({
               onClick={() => setProfileDropdownOpen((prev) => !prev)}
               className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none"
             >
-              <div className="text-right hidden sm:block">
-                <div className="text-[14px] font-bold text-gray-900">{userName}</div>
-                <div className="text-[11px] text-gray-500">{userEmail}</div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
-                <span className="text-sm font-bold text-gray-700">{userInitials}</span>
-              </div>
-              <FiChevronDown
-                size={16}
-                className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
-                  profileDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
+              {isUserLoading ? (
+                <div className="flex items-center gap-3 animate-pulse">
+                  <div className="hidden sm:flex flex-col items-end gap-1.5">
+                    <div className="h-3.5 bg-gray-200 rounded w-24"></div>
+                    <div className="h-2.5 bg-gray-200 rounded w-32"></div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-gray-200 border border-gray-200 flex-shrink-0"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-right hidden sm:block">
+                    <div className="text-[14px] font-bold text-gray-900">{userName || "Customer"}</div>
+                    <div className="text-[11px] text-gray-500">{userEmail}</div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
+                    <span className="text-sm font-bold text-gray-700">{userInitials || "C"}</span>
+                  </div>
+                  <FiChevronDown
+                    size={16}
+                    className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
+                      profileDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </>
+              )}
             </button>
 
             {/* Dropdown Menu */}

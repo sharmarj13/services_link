@@ -55,6 +55,7 @@ interface AddWorkLogModalProps {
   formData: WorkEntryForm;
   onChange: React.Dispatch<React.SetStateAction<WorkEntryForm>>;
   onSubmit: (e: React.FormEvent) => void;
+  sites?: Array<{ id: string; name: string }>;
 }
 
 export default function AddWorkLogModal({
@@ -63,6 +64,7 @@ export default function AddWorkLogModal({
   formData,
   onChange,
   onSubmit,
+  sites = [],
 }: AddWorkLogModalProps) {
   if (!isOpen) return null;
 
@@ -149,9 +151,15 @@ export default function AddWorkLogModal({
                 className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
               >
                 <option value="" disabled>Select site zone</option>
-                {SITES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {sites && sites.length > 0 ? (
+                  sites.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))
+                ) : (
+                  SITES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))
+                )}
               </select>
             </div>
           </div>

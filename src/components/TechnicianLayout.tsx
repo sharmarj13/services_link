@@ -16,6 +16,7 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface TechnicianLayoutProps {
   children: React.ReactNode;
@@ -35,6 +36,42 @@ export default function TechnicianLayout({
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic user state
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userInitials, setUserInitials] = useState("");
+  const [isUserLoading, setIsUserLoading] = useState(true);
+
+  // Fetch logged-in user info
+  useEffect(() => {
+    const fetchUser = async () => {
+      setIsUserLoading(true);
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          const u = data.user;
+          const first = u?.firstName || "";
+          const last = u?.lastName || "";
+          setUserName(`${first} ${last}`.trim());
+          setUserEmail(u?.email || "");
+          setUserInitials(
+            `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch user:", err);
+      } finally {
+        setIsUserLoading(false);
+      }
+    };
+    fetchUser();
+    
+    // Listen for profile updates to refresh header
+    window.addEventListener("profileUpdated", fetchUser);
+    return () => window.removeEventListener("profileUpdated", fetchUser);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -58,9 +95,8 @@ export default function TechnicianLayout({
   const handleSignOut = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await apiFetch(`/api/auth/logout`, {
         method: "POST",
-        credentials: "include"
       });
     } catch (err) {
       console.error("Signout error:", err);
@@ -154,19 +190,31 @@ export default function TechnicianLayout({
               onClick={() => setProfileDropdownOpen((prev) => !prev)}
               className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none"
             >
-              <div className="text-right hidden sm:block">
-                <div className="text-[14px] font-bold text-gray-900">Maurice Maldonado</div>
-                <div className="text-[11px] text-gray-500">maurice.maldonado@gmail.com</div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
-                <span className="text-sm font-bold text-gray-700">MM</span>
-              </div>
-              <FiChevronDown
-                size={16}
-                className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
-                  profileDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
+              {isUserLoading ? (
+                <div className="flex items-center gap-3 animate-pulse">
+                  <div className="hidden sm:flex flex-col items-end gap-1.5">
+                    <div className="h-3.5 bg-gray-200 rounded w-24"></div>
+                    <div className="h-2.5 bg-gray-200 rounded w-32"></div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-gray-200 border border-gray-200 flex-shrink-0"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-right hidden sm:block">
+                    <div className="text-[14px] font-bold text-gray-900">{userName || "Technician"}</div>
+                    <div className="text-[11px] text-gray-500">{userEmail}</div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
+                    <span className="text-sm font-bold text-gray-700">{userInitials || "T"}</span>
+                  </div>
+                  <FiChevronDown
+                    size={16}
+                    className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
+                      profileDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </>
+              )}
             </button>
 
             {/* Dropdown Menu */}
@@ -174,7 +222,7 @@ export default function TechnicianLayout({
               <div className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-[dropdownFadeIn_0.15s_ease]">
                 {/* Profile header inside dropdown */}
                 <div className="px-4 py-3.5 border-b border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">Maurice Maldonado</div>
+                  <div className="text-sm font-bold text-gray-900">{userName || "Technician"}</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">Technician</div>
                 </div>
 

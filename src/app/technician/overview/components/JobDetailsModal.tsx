@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import { User, MapPin, Calendar, Hash, Shield, Phone, Mail, Plus, Lock, Trash2, MessageSquare, Bell } from "lucide-react";
 
 interface Job {
@@ -154,7 +153,7 @@ export default function JobDetailsModal({ job, onClose }: JobDetailsModalProps) 
 
               {/* Image 1 */}
               <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200 group">
-                <Image src="https://images.unsplash.com/photo-1541888086425-d81bb19240f5?q=80&w=300&auto=format&fit=crop" alt="Construction site" fill className="object-cover" />
+                <img src="https://images.unsplash.com/photo-1541888086425-d81bb19240f5?q=80&w=300&auto=format&fit=crop" alt="Construction site" className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute top-2 right-2 w-6 h-6 bg-[#D12031] rounded-full flex items-center justify-center shadow-sm">
                   <Lock size={12} className="text-white" strokeWidth={2.5} />
                 </div>
@@ -165,7 +164,7 @@ export default function JobDetailsModal({ job, onClose }: JobDetailsModalProps) 
 
               {/* Image 2 */}
               <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200 group">
-                <Image src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?q=80&w=300&auto=format&fit=crop" alt="Site" fill className="object-cover" />
+                <img src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?q=80&w=300&auto=format&fit=crop" alt="Site" className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute top-2 right-2 w-6 h-6 bg-[#D12031] rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:bg-[#b81d2c] transition-colors">
                   <Trash2 size={12} className="text-white" strokeWidth={2.5} />
                 </div>
@@ -176,7 +175,7 @@ export default function JobDetailsModal({ job, onClose }: JobDetailsModalProps) 
 
               {/* Image 3 */}
               <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200 group">
-                <Image src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=300&auto=format&fit=crop" alt="Site overview" fill className="object-cover" />
+                <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=300&auto=format&fit=crop" alt="Site overview" className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute top-2 right-2 w-6 h-6 bg-[#D12031] rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:bg-[#b81d2c] transition-colors">
                   <Trash2 size={12} className="text-white" strokeWidth={2.5} />
                 </div>
