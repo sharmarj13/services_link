@@ -195,12 +195,17 @@ export default function CustomerOverviewPage() {
   if (isLoading) {
     return (
       <CustomerLayout title="Work Overview" subtitle="Loading site dashboard...">
-        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-          <svg className="animate-spin h-10 w-10 text-[#D12031]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-bold text-gray-500">Loading dynamic site data...</span>
+        <div className="max-w-7xl pb-2 space-y-10 animate-pulse mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gray-200/60 rounded-2xl h-[160px] w-full"></div>
+            <div className="bg-gray-200/60 rounded-2xl h-[160px] w-full"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-200/60 rounded-xl h-[112px] w-full"></div>
+            <div className="bg-gray-200/60 rounded-xl h-[112px] w-full"></div>
+            <div className="bg-gray-200/60 rounded-xl h-[112px] w-full"></div>
+          </div>
+          <div className="bg-gray-200/60 rounded-xl h-[240px] w-full mt-8"></div>
         </div>
       </CustomerLayout>
     );

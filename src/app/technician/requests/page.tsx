@@ -136,13 +136,31 @@ export default function WorkRequestsPage() {
   useEffect(() => {
     fetchJobs(activeFilter, debouncedSearchQuery, currentFilters);
 
-    // Fetch local storage notices for alerts check
-    try {
-      const storedNotices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      setNotices(storedNotices);
-    } catch (e) {
-      console.error(e);
-    }
+    // Fetch safety notices from database for alerts check
+    const fetchSafetyNotices = async () => {
+      try {
+        const res = await apiFetch("/api/safety-notices");
+        if (res.ok) {
+          const body = await res.json();
+          const list = (body.data || []).map((dbNotice: any) => {
+            const noticeDate = new Date(dbNotice.createdAt);
+            return {
+              jobId: dbNotice.workRequestId,
+              noticeType: dbNotice.noticeType,
+              priority: dbNotice.priority,
+              description: dbNotice.description,
+              actionRequired: dbNotice.actionRequired,
+              date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            };
+          });
+          setNotices(list);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchSafetyNotices();
   }, [activeFilter, debouncedSearchQuery, currentFilters, fetchJobs]);
 
   const handleStartJob = async (id: string) => {

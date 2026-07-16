@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FiUser, FiMail, FiUserPlus } from "react-icons/fi";
+import { FiUser, FiMail, FiUserPlus, FiPhone } from "react-icons/fi";
 import { HiOutlineUserGroup } from "react-icons/hi";
 import { BsBuildingCheck } from "react-icons/bs";
 import { AuthLayout, Logo, InputField, PasswordInput, SelectField, PrimaryButton } from "@/components/AuthUI";
@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
   const [site, setSite] = useState("");
   const [password, setPassword] = useState("");
@@ -88,6 +89,7 @@ export default function SignupPage() {
           firstName,
           lastName,
           email,
+          phone,
           password,
           role: apiRole,
           siteId,
@@ -169,17 +171,30 @@ export default function SignupPage() {
           />
         </div>
 
-        <InputField
-          id="signup-email"
-          label="Email"
-          type="email"
-          placeholder="Enter your Email"
-          icon={<FiMail />}
-          value={email}
-          onChange={setEmail}
-          required
-        />
+        {/* Email + Phone row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
+          <InputField
+            id="signup-email"
+            label="Email"
+            type="email"
+            placeholder="Enter your Email"
+            icon={<FiMail />}
+            value={email}
+            onChange={setEmail}
+            required
+          />
 
+          <InputField
+            id="signup-phone"
+            label="Phone Number"
+            type="tel"
+            placeholder="Enter your Phone Number"
+            icon={<FiPhone />}
+            value={phone}
+            onChange={setPhone}
+            required
+          />
+        </div>
         {/* Role + Site row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
           <SelectField
@@ -204,24 +219,28 @@ export default function SignupPage() {
           />
         </div>
 
-        <PasswordInput
-          id="signup-password"
-          label="Password"
-          placeholder="Enter your Password (min 8 characters)"
-          value={password}
-          onChange={setPassword}
-          required
-        />
+        {/* Passwords row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
+          <PasswordInput
+            id="signup-password"
+            label="Password"
+            placeholder="Min 8 characters"
+            value={password}
+            onChange={setPassword}
+            required
+            noMarginBottom
+          />
 
-        <PasswordInput
-          id="signup-confirm-password"
-          label="Confirm Password"
-          placeholder="Confirm your Password"
-          value={confirmPassword}
-          onChange={setConfirmPassword}
-          required
-          noMarginBottom
-        />
+          <PasswordInput
+            id="signup-confirm-password"
+            label="Confirm Password"
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            required
+            noMarginBottom
+          />
+        </div>
 
         <div className="mt-6">
           <PrimaryButton id="btn-sign-up" disabled={isLoading || sitesLoading}>

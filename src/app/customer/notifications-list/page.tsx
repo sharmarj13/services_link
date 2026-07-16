@@ -88,6 +88,8 @@ export default function CustomerNotificationsListPage() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
+    window.dispatchEvent(new CustomEvent("decrementNotifications", { detail: 1 }));
+    window.dispatchEvent(new Event("notificationsRead"));
     try {
       await apiFetch(`/api/notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {

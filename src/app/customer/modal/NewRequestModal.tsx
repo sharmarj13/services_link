@@ -328,7 +328,6 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
                 <option>Low</option>
                 <option>Medium</option>
                 <option>High</option>
-                <option>Urgent</option>
               </select>
             </div>
 

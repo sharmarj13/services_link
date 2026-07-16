@@ -22,15 +22,16 @@ import {
 import TechnicianLayout from "@/components/TechnicianLayout";
 import { apiFetch } from "@/lib/apiFetch";
 import NoticeBroadcastModal from "@/app/technician/overview/components/NoticeBroadcastModal";
+import { API_BASE_URL } from "@/config";
 
 interface Notice {
   jobId: string;
   noticeType: string;
   priority: string;
   description: string;
-  actionRequired: boolean;
   date: string;
   time: string;
+  evidencePhotoUrls?: string[];
 }
 
 export default function JobDetailPage() {
@@ -42,6 +43,7 @@ export default function JobDetailPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isNotifyOpen, setIsNotifyOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
+  const [isResolving, setIsResolving] = useState(false);
 
   const fetchJobDetails = useCallback(async () => {
     if (!params?.id) return;
@@ -55,6 +57,29 @@ export default function JobDetailPage() {
           setIsStarted(true);
         }
       }
+
+      // Fetch safety notice from database
+      const noticeRes = await apiFetch(`/api/work-requests/${params.id}/notices`);
+      if (noticeRes.ok) {
+        const noticeData = await noticeRes.json();
+        if (noticeData.data && noticeData.data.length > 0) {
+          const dbNotice = noticeData.data[0];
+          const noticeDate = new Date(dbNotice.createdAt);
+          setNotice({
+            jobId: dbNotice.workRequestId,
+            noticeType: dbNotice.noticeType,
+            priority: dbNotice.priority,
+            description: dbNotice.description,
+            evidencePhotoUrls: (dbNotice.evidencePhotoUrls || []).map((url: string) =>
+              url.startsWith("http") ? url : `${API_BASE_URL}${url}`
+            ),
+            date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          });
+        } else {
+          setNotice(null);
+        }
+      }
     } catch (e) {
       console.error("Failed to fetch job details:", e);
     } finally {
@@ -64,22 +89,7 @@ export default function JobDetailPage() {
 
   useEffect(() => {
     fetchJobDetails();
-
-    // Load notice alert info from local storage
-    if (params?.id && typeof params.id === "string") {
-      try {
-        const noticesList: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-        const foundNotice = noticesList.find((n: Notice) => n.jobId === params.id);
-        if (foundNotice) {
-          setNotice(foundNotice);
-        } else {
-          setNotice(null);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, [params, fetchJobDetails]);
+  }, [fetchJobDetails]);
 
   const handleStartJob = async () => {
     if (!job) return;
@@ -112,50 +122,67 @@ export default function JobDetailPage() {
     window.location.href = `mailto:${job.customer.email}`;
   };
 
-  const handleSendBroadcast = (data: {
+  const handleSendBroadcast = async (data: {
     noticeType: string;
     priority: string;
     description: string;
-    actionRequired: boolean;
+    evidencePhotoUrls?: string[];
   }) => {
-    setIsNotifyOpen(false);
     if (!job?.id) return;
     try {
-      const storedNotices = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      const filteredNotices = storedNotices.filter((n: any) => n.jobId !== job.id);
-      
-      const newNotice = {
-        jobId: job.id,
-        ...data,
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      
-      filteredNotices.push(newNotice);
-      localStorage.setItem("servicelink_notices", JSON.stringify(filteredNotices));
+      const res = await apiFetch(`/api/work-requests/${job.id}/notices`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
 
-      setNotice(newNotice);
+      if (res.ok) {
+        const dbNotice = await res.json();
+        const noticeDate = new Date(dbNotice.createdAt);
+        const newNotice = {
+          jobId: dbNotice.workRequestId,
+          noticeType: dbNotice.noticeType,
+          priority: dbNotice.priority,
+          description: dbNotice.description,
+          evidencePhotoUrls: (dbNotice.evidencePhotoUrls || []).map((url: string) =>
+            url.startsWith("http") ? url : `${API_BASE_URL}${url}`
+          ),
+          date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
 
-      setToastMsg("Safety Notice broadcasted successfully!");
-      setTimeout(() => setToastMsg(""), 3000);
-      window.dispatchEvent(new Event("storage"));
+        setNotice(newNotice);
+        setToastMsg("Safety Notice broadcasted successfully!");
+        setTimeout(() => setToastMsg(""), 3000);
+        window.dispatchEvent(new Event("storage"));
+        setIsNotifyOpen(false);
+      } else {
+        alert("Failed to broadcast safety notice.");
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleDismissNotice = () => {
+  const handleDismissNotice = async () => {
     if (!job?.id) return;
+    setIsResolving(true);
     try {
-      const storedNotices = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      const filteredNotices = storedNotices.filter((n: any) => n.jobId !== job.id);
-      localStorage.setItem("servicelink_notices", JSON.stringify(filteredNotices));
-      setNotice(null);
-      setToastMsg("Safety notice resolved and dismissed.");
-      setTimeout(() => setToastMsg(""), 3000);
-      window.dispatchEvent(new Event("storage"));
+      const res = await apiFetch(`/api/work-requests/${job.id}/notices`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setNotice(null);
+        setToastMsg("Safety notice resolved and dismissed.");
+        setTimeout(() => setToastMsg(""), 3000);
+        window.dispatchEvent(new Event("storage"));
+      } else {
+        alert("Failed to clear safety notice.");
+      }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -165,8 +192,78 @@ export default function JobDetailPage() {
         title="Work Requests"
         subtitle="Manage your work requests and track their progress"
       >
-        <div className="flex justify-center items-center py-20">
-          <div className="w-10 h-10 border-4 border-[#D12031] border-t-transparent rounded-full animate-spin"></div>
+        {/* Back Link Skeleton */}
+        <div className="mb-6">
+          <div className="w-32 h-5 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+
+        {/* Main Details Grid Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Job Information Skeleton */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-5">
+                <div className="w-40 h-6 bg-gray-200 rounded animate-pulse"></div>
+                <div className="w-24 h-6 bg-gray-200 rounded-full animate-pulse"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse mt-0.5"></div>
+                    <div>
+                      <div className="w-20 h-3 bg-gray-200 rounded animate-pulse mb-2"></div>
+                      <div className="w-32 h-4 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Scope of Work Skeleton */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="w-32 h-6 bg-gray-200 rounded animate-pulse mb-4"></div>
+              <div className="w-full h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="w-3/4 h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="w-1/2 h-4 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+
+            {/* Action Buttons Skeleton */}
+            <div className="flex gap-3">
+              <div className="flex-[1.5] h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="flex-1 h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="flex-1 h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Contact Details Skeleton */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="w-32 h-6 bg-gray-200 rounded animate-pulse mb-6"></div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"></div>
+                <div>
+                  <div className="w-24 h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="w-32 h-3 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="w-full h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                <div className="w-full h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Attachments Skeleton */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="w-24 h-6 bg-gray-200 rounded animate-pulse mb-4"></div>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="w-full aspect-[4/3] bg-gray-200 rounded-xl animate-pulse"></div>
+                <div className="w-full aspect-[4/3] bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+              <div className="w-full h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </TechnicianLayout>
     );
@@ -382,6 +479,25 @@ export default function JobDetailPage() {
                     {notice.description}
                   </p>
                 </div>
+
+                {notice.evidencePhotoUrls && notice.evidencePhotoUrls.length > 0 && (
+                  <div className="border-t border-red-150/40 pt-4 mt-4">
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Evidence Photos</p>
+                    <div className="flex flex-wrap gap-3">
+                      {notice.evidencePhotoUrls.map((url: string, idx: number) => {
+                        return (
+                          <div 
+                            key={idx} 
+                            onClick={() => setViewingImages(notice.evidencePhotoUrls!)} 
+                            className="relative w-20 h-20 rounded-xl overflow-hidden border border-red-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                          >
+                            <img src={url} alt="Evidence" className="absolute inset-0 w-full h-full object-cover" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -494,9 +610,17 @@ export default function JobDetailPage() {
                   </div>
                   <button
                     onClick={handleDismissNotice}
-                    className="text-[12px] font-bold text-[#c62828] bg-white border border-[#ffcdd2] px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                    disabled={isResolving}
+                    className="text-[12px] font-bold text-[#c62828] bg-white border border-[#ffcdd2] px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >
-                    Resolve & Dismiss
+                    {isResolving ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-[#c62828] border-t-transparent rounded-full animate-spin"></div>
+                        Resolving...
+                      </>
+                    ) : (
+                      "Resolve & Dismiss"
+                    )}
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 pb-4 border-b border-[#ffcdd2]/50">

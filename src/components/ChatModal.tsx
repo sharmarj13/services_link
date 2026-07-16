@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FiPaperclip, FiSend, FiUser, FiX } from "react-icons/fi";
 import Image from "next/image";
+import { apiFetch } from "@/lib/apiFetch";
+import { API_BASE_URL } from "@/config";
 
 export interface ChatMessage {
   id: string | number;
@@ -24,7 +26,16 @@ interface ChatModalProps {
   infoMessage?: string; // Optional banner text (like in Admin chat)
   showNewRequestSuggestion?: boolean;
   onTriggerNewRequest?: () => void;
+  isTyping?: boolean;
 }
+
+const isImageUrl = (text: string): boolean => {
+  if (!text) return false;
+  return (
+    (text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/uploads/")) &&
+    /\.(jpeg|jpg|gif|png|svg|webp)($|\?)/i.test(text)
+  );
+};
 
 export default function ChatModal({
   isOpen,
@@ -35,9 +46,31 @@ export default function ChatModal({
   infoMessage,
   showNewRequestSuggestion,
   onTriggerNewRequest,
+  isTyping,
 }: ChatModalProps) {
   const [inputValue, setInputValue] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [approvedNotices, setApprovedNotices] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Reconstruct approved state based on subsequent chat messages
+    const approved: Record<string, boolean> = {};
+    messages.forEach((msg, idx) => {
+      const isNoticeMsg = msg.isNotice || msg.text.includes("NOTICE & NOTIFY APPLIED");
+      if (isNoticeMsg) {
+        // Check if there is an auto-reply approving it after this message
+        const hasApproval = messages.slice(idx + 1).some(m => 
+          m.text.includes("The customer has approved the safety observation")
+        );
+        if (hasApproval) {
+          approved[msg.id] = true;
+        }
+      }
+    });
+    setApprovedNotices(prev => ({ ...prev, ...approved }));
+  }, [messages]);
 
   useEffect(() => {
     if (isOpen) {
@@ -49,7 +82,7 @@ export default function ChatModal({
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [isOpen, messages]);
+  }, [isOpen, messages, isTyping]);
 
   if (!isOpen) return null;
 
@@ -60,6 +93,39 @@ export default function ChatModal({
     setInputValue("");
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await apiFetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          const absoluteUrl = data.url.startsWith("http") ? data.url : `${API_BASE_URL}${data.url}`;
+          onSendMessage(absoluteUrl);
+        }
+      } else {
+        console.error("Attachment upload failed");
+      }
+    } catch (err) {
+      console.error("Error uploading attachment:", err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       {/* Backdrop click to close */}
@@ -68,22 +134,13 @@ export default function ChatModal({
       <div className="bg-white rounded-3xl w-full max-w-[460px] overflow-hidden flex flex-col shadow-2xl relative z-10 animate-scale-up h-[85vh] sm:h-[600px]">
 
         {/* Header */}
-        <div className="bg-white px-4 sm:px-6 py-4 flex items-center gap-3 border-b border-gray-150 shrink-0">
+        <div className="bg-white px-4 sm:px-6 py-4 flex items-center gap-3 border-b border-gray-200 shrink-0">
           <div className="w-10 h-10 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-500 shrink-0">
             <FiUser size={20} />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900 truncate">{chatTitle}</h2>
           </div>
-          {/* {onTriggerNewRequest && (
-            <button
-              type="button"
-              onClick={onTriggerNewRequest}
-              className="px-3.5 py-1.5 bg-[#D12031] hover:bg-[#a81828] text-white font-extrabold text-[11px] rounded-lg transition-colors shadow-sm cursor-pointer border-none shrink-0 mr-1.5"
-            >
-              New Request
-            </button>
-          )} */}
           <button
             onClick={onClose}
             className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer border-none bg-transparent"
@@ -103,6 +160,8 @@ export default function ChatModal({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50 custom-scrollbar">
           {messages.map((msg) => {
             const isNoticeMsg = msg.isNotice || msg.text.includes("NOTICE & NOTIFY APPLIED");
+            const isImg = isImageUrl(msg.text);
+
             return (
               <div
                 key={msg.id}
@@ -125,54 +184,66 @@ export default function ChatModal({
                       {msg.senderName} {msg.role ? `(${msg.role})` : ""}
                     </span>
                   )}
-                  {isNoticeMsg ? (
-                    <div className="bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm text-gray-800 w-full font-sans my-0.5 space-y-2.5 relative overflow-hidden text-left">
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-red-100/35 rounded-full blur-xl pointer-events-none" />
+                  {isNoticeMsg ? (() => {
+                    const isApproved = approvedNotices[msg.id];
+                    return (
+                    <div className={`border rounded-2xl p-4 shadow-sm text-gray-800 w-full font-sans my-0.5 space-y-3.5 relative overflow-hidden text-left ${isApproved ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                      <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl pointer-events-none ${isApproved ? "bg-green-200/40" : "bg-red-200/40"}`} />
 
-                      <div className="flex items-center gap-1.5 pb-2 border-b border-red-100/50">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#D12031] animate-pulse" />
-                        <span className="text-[11px] font-bold text-gray-900">
-                          Notice &amp; Notify Observation
-                        </span>
+                      <div className={`flex items-center justify-between pb-3 border-b ${isApproved ? "border-green-200/50" : "border-red-200/50"}`}>
+                        <div className="flex items-center gap-2">
+                          {!isApproved && <span className="w-2 h-2 rounded-full bg-[#D12031] animate-pulse" />}
+                          <span className={`text-[11px] font-bold uppercase tracking-wider ${isApproved ? "text-green-700" : "text-[#D12031]"}`}>
+                            {isApproved ? "Approved Safety Observation" : "Active Safety Observation"}
+                          </span>
+                        </div>
+                        {!msg.isCurrentUser && (
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              setApprovedNotices(prev => ({ ...prev, [msg.id]: true }));
+                              onSendMessage("✅ The customer has approved the safety observation.");
+                              try {
+                                await apiFetch(`/api/messages/${msg.id}/approve-notice`, { method: "POST" });
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            disabled={isApproved}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-xs ${isApproved ? "bg-green-100 text-green-700 border border-green-200 cursor-default" : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 cursor-pointer"}`}
+                          >
+                            {isApproved ? "Approved" : "Approve"}
+                          </button>
+                        )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-[10.5px] font-medium text-gray-500">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[10.5px]">
                         <div>
-                          <p className="text-[8.5px] uppercase tracking-wider text-gray-400 font-bold">Notice Type</p>
-                          <p className="text-gray-800 mt-0.5">{msg.text.match(/Type:\s*([^\n]+)/)?.[1] || "Maintenance Issue"}</p>
+                          <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1">Notice Type</p>
+                          <p className="font-semibold text-gray-800">{msg.text.match(/Type:\s*([^\n]+)/)?.[1] || "General Observation"}</p>
                         </div>
                         <div>
-                          <p className="text-[8.5px] uppercase tracking-wider text-gray-400 font-bold">Priority Level</p>
-                          <p className="text-[#D12031] mt-0.5 font-extrabold">{msg.text.match(/Priority:\s*([^\n]+)/)?.[1] || "High"}</p>
+                          <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1">Priority</p>
+                          <p className={`font-extrabold uppercase ${msg.text.match(/Priority:\s*([^\n]+)/)?.[1]?.trim()?.toUpperCase() === "HIGH" ? "text-[#D12031]" : "text-gray-800"}`}>
+                            {msg.text.match(/Priority:\s*([^\n]+)/)?.[1] || "High"}
+                          </p>
                         </div>
-                        <div>
-                          <p className="text-[8.5px] uppercase tracking-wider text-gray-400 font-bold">Action Required</p>
-                          <p className="text-gray-800 mt-0.5">{msg.text.match(/Action Required:\s*([^\n]+)/)?.[1] || "Yes"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[8.5px] uppercase tracking-wider text-gray-400 font-bold">Technician</p>
-                          <p className="text-gray-800 mt-0.5">Karl Smith</p>
+                        <div className="col-span-2 sm:col-span-1">
+                          <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1">Reported On</p>
+                          <p className="font-semibold text-gray-800">{msg.time}</p>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-red-100/50">
-                        <p className="text-[8.5px] uppercase tracking-wider text-gray-400 font-bold">Detailed Description</p>
-                        <p className="text-[11.5px] font-semibold text-gray-700 mt-1 leading-relaxed">
-                          {msg.text.match(/Description:\s*([^\n\r]+(?:\r?\n(?!\s*(?:Priority|Action|Type|Please))[^\n\r]+)*)/)?.[1] ||
-                            "HVAC compressor has a severe leak and pressure drop."}
+                      <div className={`pt-3 border-t ${isApproved ? "border-green-200/50" : "border-red-200/50"}`}>
+                        <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1.5">Detailed Description</p>
+                        <p className="text-[12px] font-semibold text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {msg.text.match(/Description:\s*([\s\S]*?)(?:$)/)?.[1]?.trim() || "No description provided."}
                         </p>
                       </div>
-
-                      <div className="flex gap-2 pt-2 border-t border-red-100/50">
-                        {[
-                          { name: "Warehouse_Map.png", img: "/images/warehouse_map.svg" },
-                          { name: "Site.jpg", img: "/images/warehouse_map.svg" }
-                        ].map((file, i) => (
-                          <div key={i} className="relative w-14 h-10 rounded-lg overflow-hidden border border-red-200/50 bg-white">
-                            <Image src={file.img} alt="Evidence" fill className="object-cover" />
-                          </div>
-                        ))}
-                      </div>
+                    </div>
+                  )})() : isImg ? (
+                    <div className="rounded-2xl overflow-hidden border border-gray-200 max-w-[240px] shadow-sm bg-white p-1 my-0.5">
+                      <img src={msg.text} alt="Shared attachment" className="w-full h-auto rounded-xl max-h-[180px] object-cover" />
                     </div>
                   ) : (
                     <div
@@ -191,33 +262,34 @@ export default function ChatModal({
               </div>
             );
           })}
+          
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex items-end gap-2.5 flex-row animate-fade-in mb-2">
+              <div className="w-8.5 h-8.5 rounded-full flex items-center justify-center text-gray-400 bg-gray-100 border border-gray-200 shrink-0">
+                <FiUser size={14} />
+              </div>
+              <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none shadow-xs px-4 py-3.5 flex items-center gap-1.5 h-[38px]">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggestion Banner */}
-        {showNewRequestSuggestion && onTriggerNewRequest && (
-          <div className="bg-red-50 border-t border-b border-red-100 px-4 py-3.5 flex items-center justify-between gap-3 shrink-0">
-            <div className="flex-1">
-              <p className="text-[12.5px] font-bold text-gray-800">
-                Notice &amp; Notify Applied
-              </p>
-              <p className="text-[10.5px] font-medium text-gray-500 mt-0.5">
-                The technician raised a maintenance notice. Create a new request to schedule repairs.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onTriggerNewRequest}
-              className="px-3.5 py-1.5 bg-[#D12031] hover:bg-[#a81828] text-white font-extrabold text-[11px] rounded-lg transition-colors shadow-xs cursor-pointer border-none shrink-0"
-            >
-              Create Request
-            </button>
-          </div>
-        )}
-
         {/* Footer Input */}
-        <form onSubmit={handleSubmit} className="p-3 sm:p-5 bg-white border-t border-gray-150 shrink-0">
-          <div className="relative flex items-center bg-gray-50 border border-gray-250 rounded-2xl px-4 py-2 focus-within:bg-white focus-within:border-[#D12031] transition-all">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-5 bg-white border-t border-gray-200 shrink-0">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleFileChange}
+            accept="image/*"
+          />
+          <div className="relative flex items-center bg-gray-50 border border-gray-300 rounded-2xl px-4 py-2 focus-within:bg-white focus-within:border-[#D12031] transition-all">
             <input
               type="text"
               value={inputValue}
@@ -226,15 +298,39 @@ export default function ChatModal({
               className="flex-1 text-[13px] text-gray-800 outline-none bg-transparent placeholder-gray-400 font-semibold"
             />
             <div className="flex items-center gap-1.5 ml-2">
-              <button type="button" className="p-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer border-none bg-transparent">
-                <FiPaperclip size={18} />
-              </button>
-              <button
-                type="submit"
-                className="w-10 h-10 bg-[#D12031] hover:bg-[#a81828] text-white rounded-xl flex items-center justify-center shrink-0 cursor-pointer border-none transition-colors shadow-sm"
-              >
-                <FiSend size={16} />
-              </button>
+              <div className="relative group flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer border-none bg-transparent disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <div className="animate-spin rounded-full h-4.5 w-4.5 border-b-2 border-[#D12031]" />
+                  ) : (
+                    <FiPaperclip size={18} />
+                  )}
+                </button>
+                {/* Tooltip */}
+                <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 pointer-events-none whitespace-nowrap bg-gray-800 text-white text-[11px] font-medium px-2.5 py-1 rounded shadow-md z-50">
+                  Attach Photo
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-gray-800"></div>
+                </div>
+              </div>
+
+              <div className="relative group flex items-center justify-center">
+                <button
+                  type="submit"
+                  className="w-10 h-10 bg-[#D12031] hover:bg-[#a81828] text-white rounded-xl flex items-center justify-center shrink-0 cursor-pointer border-none transition-colors shadow-sm"
+                >
+                  <FiSend size={16} />
+                </button>
+                {/* Tooltip */}
+                <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 pointer-events-none whitespace-nowrap bg-gray-800 text-white text-[11px] font-medium px-2.5 py-1 rounded shadow-md z-50">
+                  Send Message
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-gray-800"></div>
+                </div>
+              </div>
             </div>
           </div>
         </form>

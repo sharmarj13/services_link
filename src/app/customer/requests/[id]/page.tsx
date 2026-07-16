@@ -66,6 +66,7 @@ interface Notice {
   actionRequired: boolean;
   date: string;
   time: string;
+  evidencePhotoUrls?: string[];
 }
 
 /* ─── Status badge config ─── */
@@ -449,35 +450,33 @@ export default function CustomerRequestDetailPage() {
       }
       const id = params.id as string;
 
-      // Fetch notice fallback
+      // Fetch safety notice from database
       try {
-        let notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-        if (notices.length === 0) {
-          notices = [
-            {
-              jobId: "99410",
-              noticeType: "Maintenance Issue",
-              priority: "High",
-              description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
-              actionRequired: true,
-              date: "Jun 24, 2026",
-              time: "11:30 AM"
-            },
-            {
-              jobId: "99411",
-              noticeType: "Safety Hazard",
-              priority: "Urgent",
-              description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
-              actionRequired: true,
-              date: "Jun 25, 2026",
-              time: "09:45 AM"
-            }
-          ];
-          localStorage.setItem("servicelink_notices", JSON.stringify(notices));
+        const noticeRes = await apiFetch(`/api/work-requests/${id}/notices`);
+        if (noticeRes.ok) {
+          const noticeData = await noticeRes.json();
+          if (noticeData.data && noticeData.data.length > 0) {
+            const dbNotice = noticeData.data[0];
+            const noticeDate = new Date(dbNotice.createdAt);
+            setNotice({
+              jobId: dbNotice.workRequestId,
+              noticeType: dbNotice.noticeType,
+              priority: dbNotice.priority,
+              description: dbNotice.description,
+              actionRequired: dbNotice.actionRequired,
+              evidencePhotoUrls: (dbNotice.evidencePhotoUrls || []).map((url: string) =>
+                url.startsWith("http") ? url : `${API_BASE_URL}${url}`
+              ),
+              date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            });
+          } else {
+            setNotice(null);
+          }
         }
-        const foundNotice = notices.find((n: Notice) => n.jobId === id);
-        setNotice(foundNotice || null);
-      } catch { }
+      } catch (err) {
+        console.error("Failed to fetch safety notice:", err);
+      }
 
       await fetchJobDetail();
       setIsLoading(false);
@@ -489,12 +488,68 @@ export default function CustomerRequestDetailPage() {
   if (isLoading) {
     return (
       <CustomerLayout title="Work Requests" subtitle="Loading work request...">
-        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-          <svg className="animate-spin h-10 w-10 text-[#D12031]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-sm font-bold text-gray-500">Loading details from database...</span>
+        <div className="w-full">
+          {/* Back Button Skeleton */}
+          <div className="mb-6">
+            <div className="w-32 h-5 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left Column Skeleton */}
+            <div className="flex-1 flex flex-col gap-5 min-w-0">
+              {/* Header / Main Card Skeleton */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="h-16 bg-gray-200 animate-pulse"></div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12 mt-4">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i}>
+                        <div className="w-24 h-3 bg-gray-200 rounded animate-pulse mb-2"></div>
+                        <div className="w-40 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Additional Notes Skeleton */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div className="w-32 h-5 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="w-full h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="w-3/4 h-4 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Right Column Skeleton */}
+            <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-5">
+              {/* Photos Card Skeleton */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className="w-24 h-5 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="w-full aspect-[4/3] bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+              
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className="w-24 h-5 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="w-full aspect-[4/3] bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+
+              {/* Timeline Skeleton */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className="w-32 h-5 bg-gray-200 rounded animate-pulse mb-6"></div>
+                <div className="space-y-6">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="w-6 h-6 rounded-full bg-gray-200 animate-pulse shrink-0"></div>
+                      <div className="flex-1">
+                        <div className="w-24 h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                        <div className="w-32 h-3 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </CustomerLayout>
     );
@@ -992,22 +1047,28 @@ export default function CustomerRequestDetailPage() {
                   </div>
 
                   {/* Evidence Photos */}
-                  <div className="border-t border-red-150/40 pt-4 mt-4">
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Evidence Photos</p>
-                    <div className="flex gap-3">
-                      {[
-                        { name: "Warehouse_Map.png", img: "/images/warehouse_map.svg" },
-                        { name: "Site.jpg", img: "/images/warehouse_map.svg" }
-                      ].map((file, i) => (
-                        <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white font-sans">
-                          <Image src={file.img} alt="Evidence" fill className="object-cover" />
-                          <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white px-2 py-0.5 truncate text-center">
-                            {file.name}
-                          </div>
-                        </div>
-                      ))}
+                  {notice.evidencePhotoUrls && notice.evidencePhotoUrls.length > 0 && (
+                    <div className="border-t border-red-150/40 pt-4 mt-4">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Evidence Photos</p>
+                      <div className="flex gap-3 flex-wrap">
+                        {notice.evidencePhotoUrls.map((url, i) => {
+                          const fileName = url.substring(url.lastIndexOf("/") + 1);
+                          return (
+                            <div 
+                              key={i} 
+                              onClick={() => openPhotoPreview("Evidence Photos", notice.evidencePhotoUrls || [], i)}
+                              className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white font-sans cursor-pointer hover:opacity-90 transition-opacity"
+                            >
+                              <img src={url} alt="Evidence" className="absolute inset-0 w-full h-full object-cover" />
+                              <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white px-2 py-0.5 truncate text-center">
+                                {fileName}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1346,7 +1407,6 @@ export default function CustomerRequestDetailPage() {
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
-                    <option value="Urgent">Urgent</option>
                   </select>
                 </div>
 

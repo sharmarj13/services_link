@@ -767,58 +767,64 @@ export default function App() {
       <NoticeBroadcastModal
         isOpen={isNotifyOpen}
         onClose={() => setIsNotifyOpen(false)}
-        onSendBroadcast={(data) => {
+        onSendBroadcast={async (data) => {
           setIsNotifyOpen(false);
           if (activeJobId) {
             try {
-              const notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-              const filteredNotices = notices.filter((n: Notice) => n.jobId !== activeJobId);
-              const newNotice = {
-                jobId: activeJobId,
-                ...data,
-                date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              };
-              filteredNotices.push(newNotice);
-              localStorage.setItem("servicelink_notices", JSON.stringify(filteredNotices));
+              const res = await apiFetch(`/api/work-requests/${activeJobId}/notices`, {
+                method: "POST",
+                body: JSON.stringify(data),
+                headers: { "Content-Type": "application/json" },
+              });
 
-              const noticeText = `⚠️ NOTICE & NOTIFY APPLIED\n\nType: ${data.noticeType}\nPriority: ${data.priority}\nDescription: ${data.description}\nAction Required: ${data.actionRequired ? "Yes" : "No"}`;
+              if (res.ok) {
+                const dbNotice = await res.json();
+                const noticeDate = new Date(dbNotice.createdAt);
+                const newNotice = {
+                  jobId: dbNotice.workRequestId,
+                  ...data,
+                  date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                  time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                };
 
-              const chatKey = `servicelink_chat_${activeJobId}`;
-              const storedMessages = JSON.parse(localStorage.getItem(chatKey) || "[]");
-              let updatedMessages = [...storedMessages];
-              if (updatedMessages.length === 0) {
-                updatedMessages = [
-                  {
-                    id: 1,
-                    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                    time: "6/5/2026, 1:47:10 PM",
-                    senderName: "Maurice Maldonado",
-                    initials: "MM",
-                    isCurrentUser: false,
-                  },
-                  {
-                    id: 2,
-                    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                    time: "YOU • 10:46 AM",
-                    senderName: "Karl Smith",
-                    initials: "KS",
-                    isCurrentUser: true,
-                  }
-                ];
+                const noticeText = `⚠️ NOTICE & NOTIFY APPLIED\n\nType: ${data.noticeType}\nPriority: ${data.priority}\nDescription: ${data.description}`;
+
+                const chatKey = `servicelink_chat_${activeJobId}`;
+                const storedMessages = JSON.parse(localStorage.getItem(chatKey) || "[]");
+                let updatedMessages = [...storedMessages];
+                if (updatedMessages.length === 0) {
+                  updatedMessages = [
+                    {
+                      id: 1,
+                      text: "I have scheduled the repair for tomorrow morning at 9 AM.",
+                      time: "6/5/2026, 1:47:10 PM",
+                      senderName: "Maurice Maldonado",
+                      initials: "MM",
+                      isCurrentUser: false,
+                    },
+                    {
+                      id: 2,
+                      text: "I have scheduled the repair for tomorrow morning at 9 AM.",
+                      time: "YOU • 10:46 AM",
+                      senderName: "Karl Smith",
+                      initials: "KS",
+                      isCurrentUser: true,
+                    }
+                  ];
+                }
+                const newMsg = {
+                  id: `notice_${activeJobId}_${Date.now()}`,
+                  text: noticeText,
+                  time: `YOU • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+                  senderName: "Karl Smith",
+                  initials: "KS",
+                  isCurrentUser: true,
+                  isNotice: true,
+                  noticeDetails: newNotice,
+                };
+                updatedMessages.push(newMsg);
+                localStorage.setItem(chatKey, JSON.stringify(updatedMessages));
               }
-              const newMsg = {
-                id: `notice_${activeJobId}_${Date.now()}`,
-                text: noticeText,
-                time: `YOU • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-                senderName: "Karl Smith",
-                initials: "KS",
-                isCurrentUser: true,
-                isNotice: true,
-                noticeDetails: newNotice,
-              };
-              updatedMessages.push(newMsg);
-              localStorage.setItem(chatKey, JSON.stringify(updatedMessages));
             } catch (err) {
               console.error(err);
             }

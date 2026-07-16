@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FiChevronDown, FiX } from "react-icons/fi";
+import { apiFetch } from "@/lib/apiFetch";
+import { API_BASE_URL } from "@/config";
 
 interface NoticeBroadcastModalProps {
   isOpen: boolean;
@@ -11,8 +13,8 @@ interface NoticeBroadcastModalProps {
     noticeType: string;
     priority: string;
     description: string;
-    actionRequired: boolean;
-  }) => void;
+    evidencePhotoUrls?: string[];
+  }) => Promise<void>;
 }
 
 export default function NoticeBroadcastModal({
@@ -23,7 +25,51 @@ export default function NoticeBroadcastModal({
   const [noticeType, setNoticeType] = useState("Maintenance Issue");
   const [priority, setPriority] = useState("Low");
   const [description, setDescription] = useState("");
-  const [actionRequired, setActionRequired] = useState(true);
+  const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const newUrls: string[] = [...evidencePhotos];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await apiFetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          newUrls.push(data.url);
+        } else {
+          console.error("Failed to upload file:", file.name);
+        }
+      }
+      setEvidencePhotos(newUrls);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setEvidencePhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -39,18 +85,26 @@ export default function NoticeBroadcastModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = () => {
-    onSendBroadcast({
-      noticeType,
-      priority,
-      description,
-      actionRequired,
-    });
-    // Reset state values
-    setNoticeType("Maintenance Issue");
-    setPriority("Low");
-    setDescription("");
-    setActionRequired(true);
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await onSendBroadcast({
+        noticeType,
+        priority,
+        description,
+        evidencePhotoUrls: evidencePhotos,
+      });
+      // Reset state values
+      setNoticeType("Maintenance Issue");
+      setPriority("Low");
+      setDescription("");
+      setEvidencePhotos([]);
+      // onClose is handled in the parent when successful
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,7 +141,7 @@ export default function NoticeBroadcastModal({
           <div className="space-y-2">
             <label className="block text-[14px] font-medium text-gray-600">Priority Level</label>
             <div className="flex gap-2">
-              {["Low", "Medium", "High", "Urgent"].map((level) => (
+              {["Low", "Medium", "High"].map((level) => (
                 <button
                   key={level}
                   type="button"
@@ -118,7 +172,18 @@ export default function NoticeBroadcastModal({
           {/* Evidence Photos */}
           <div className="space-y-2">
             <label className="block text-[14px] font-medium text-gray-600">Evidence Photos</label>
-            <div className="border-[1.5px] border-dashed border-[#D12031] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-red-50/30 transition-colors">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              multiple
+              accept="image/*"
+              className="hidden"
+            />
+            <div 
+              onClick={handleUploadClick}
+              className="border-[1.5px] border-dashed border-[#D12031] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-red-50/30 transition-colors"
+            >
               <div className="text-[#D12031] mb-3">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -126,43 +191,38 @@ export default function NoticeBroadcastModal({
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
               </div>
-              <p className="text-[14px] font-medium text-gray-700">Tap to capture or upload</p>
+              <p className="text-[14px] font-medium text-gray-700">
+                {isUploading ? "Uploading..." : "Tap to capture or upload"}
+              </p>
               <p className="text-[11px] text-gray-400 font-medium mt-1">PNG, JPG</p>
             </div>
 
             {/* Uploaded thumbnails */}
-            <div className="flex gap-3 pt-3">
-              {[
-                { name: "Warehouse_Map.png", img: "/images/warehouse_map.svg" },
-                { name: "Site.jpg", img: "/images/warehouse_map.svg" } // Fallback to same image
-              ].map((file, i) => (
-                <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm">
-                  <Image src={file.img} alt="Evidence" fill className="object-cover" />
-                  <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white px-2 py-1 truncate text-center">
-                    {file.name}
-                  </div>
-                  <button className="absolute top-1.5 right-1.5 bg-[#D12031] text-white p-0.5 rounded-full hover:bg-[#a81828] transition-colors shadow-sm">
-                    <FiX size={12} strokeWidth={3} />
-                  </button>
-                </div>
-              ))}
-            </div>
+            {evidencePhotos.length > 0 && (
+              <div className="flex gap-3 pt-3 flex-wrap">
+                {evidencePhotos.map((url, i) => {
+                  const fileName = url.substring(url.lastIndexOf("/") + 1);
+                  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+                  return (
+                    <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                      <img src={fullUrl} alt="Evidence" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white px-2 py-1 truncate text-center">
+                        {fileName}
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => handleRemovePhoto(i)}
+                        className="absolute top-1.5 right-1.5 bg-[#D12031] text-white p-0.5 rounded-full hover:bg-[#a81828] transition-colors shadow-sm"
+                      >
+                        <FiX size={12} strokeWidth={3} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Customer Action Required */}
-          <div className="flex items-center justify-between pt-3">
-            <div>
-              <p className="text-[14px] font-bold text-gray-900">Customer Action Required</p>
-              <p className="text-[11px] text-gray-500 font-medium mt-0.5">Does the client need to authorize further work?</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActionRequired(!actionRequired)}
-              className={`w-11 h-6 rounded-full relative transition-colors ${actionRequired ? "bg-[#D12031]" : "bg-gray-300"}`}
-            >
-              <div className={`w-4.5 h-4.5 bg-white rounded-full absolute top-[3px] transition-transform ${actionRequired ? "translate-x-5" : "translate-x-1"}`} />
-            </button>
-          </div>
         </div>
 
         {/* Footer Actions */}
@@ -175,9 +235,17 @@ export default function NoticeBroadcastModal({
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 py-3 sm:py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[13px] sm:text-[14px] rounded-xl transition-colors text-center shadow-sm"
+            disabled={isSubmitting}
+            className="flex-1 py-3 sm:py-3.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[13px] sm:text-[14px] rounded-xl transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Submit Notice
+            {isSubmitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Submitting...
+              </>
+            ) : (
+              "Submit Notice"
+            )}
           </button>
         </div>
       </div>

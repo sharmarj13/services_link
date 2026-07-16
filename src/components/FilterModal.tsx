@@ -120,7 +120,6 @@ export default function FilterModal({ isOpen, onClose, onApply, siteId, currentF
                   <option>Low</option>
                   <option>Medium</option>
                   <option>High</option>
-                  <option>Urgent</option>
                 </select>
                 <FiChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
               </div>
