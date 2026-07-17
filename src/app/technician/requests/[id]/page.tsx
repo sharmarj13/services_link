@@ -769,13 +769,6 @@ export default function JobDetailPage() {
                   <FiPhone size={16} />
                   <span>Call</span>
                 </button>
-                <button
-                  onClick={handleEmail}
-                  className="w-full flex items-center justify-center gap-2 py-3 border border-[#D12031] text-[#D12031] hover:bg-red-50 font-bold text-[14px] rounded-lg transition-all cursor-pointer"
-                >
-                  <FiMail size={16} />
-                  <span>Email Contact</span>
-                </button>
               </div>
             </div>
 
