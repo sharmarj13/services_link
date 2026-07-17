@@ -128,12 +128,11 @@ export default function AdminLayout({
     <div className="flex flex-col h-full bg-[#D12031] text-white">
       {/* Logo / Brand area */}
       <div className="flex items-center justify-center bg-white shrink-0 h-20 px-5">
-        <Image
+        <img
           src="/images/Logo.png"
           alt="ServiceLink Cardinal Group Logo"
           width={170}
           height={52}
-          priority
           className="object-contain"
         />
       </div>
