@@ -60,6 +60,7 @@ interface AddWorkLogModalProps {
   onSubmit: (e: React.FormEvent) => void;
   sites?: Array<{ id: string; name: string }>;
   activeRequests?: Array<{ id: string; title: string }>;
+  isSubmitting?: boolean;
 }
 
 export default function AddWorkLogModal({
@@ -70,6 +71,7 @@ export default function AddWorkLogModal({
   onSubmit,
   sites = [],
   activeRequests = [],
+  isSubmitting = false,
 }: AddWorkLogModalProps) {
   const [isUploading, setIsUploading] = useState<"before" | "after" | null>(null);
   const beforeInputRef = useRef<HTMLInputElement>(null);
@@ -115,7 +117,10 @@ export default function AddWorkLogModal({
 
         if (res.ok) {
           const data = await res.json();
-          newUrls.push(data.url);
+          // Convert relative /uploads/ path to absolute API path for proper rendering
+          const { API_BASE_URL } = require("@/config");
+          const absoluteUrl = data.url.startsWith("http") ? data.url : `${API_BASE_URL}${data.url}`;
+          newUrls.push(absoluteUrl);
         } else {
           console.error("Failed to upload file:", file.name);
         }
@@ -544,9 +549,15 @@ export default function AddWorkLogModal({
             id="btn-submit-modal"
             type="submit"
             onClick={onSubmit}
-            className="px-5 py-2.5 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-xs md:text-sm rounded-xl cursor-pointer shadow-sm active:scale-[0.98] transition-colors"
+            disabled={isSubmitting}
+            className={`px-5 py-2.5 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-xs md:text-sm rounded-xl shadow-sm active:scale-[0.98] transition-colors flex items-center justify-center gap-2 min-w-[160px] ${
+              isSubmitting ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            Confirm Submission
+            {isSubmitting && (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            )}
+            {isSubmitting ? "Submitting..." : "Confirm Submission"}
           </button>
         </div>
       </div>

@@ -170,8 +170,11 @@ export default function App() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     const categoryVal = formData.category.toLowerCase() === "safety" ? "other" : formData.category.toLowerCase();
     const workTypeMap: Record<string, string> = {
@@ -253,6 +256,8 @@ export default function App() {
     } catch (err) {
       console.error("Error submitting work entry:", err);
       alert("Failed to submit work log due to network or server error.");
+    } finally {
+      setIsSubmitting(false);
     }
     
     setTimeout(() => setSuccessToast(false), 4000);
@@ -767,12 +772,16 @@ export default function App() {
           {/* 🛠️ ADD COMPLETED WORK ENTRY MODAL DIALOG */}
           <AddWorkLogModal
             isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => {
+              setIsModalOpen(false);
+              setFormData(INITIAL_FORM);
+            }}
             formData={formData}
             onChange={setFormData}
             onSubmit={handleSubmit}
             sites={sites}
             activeRequests={activeJobs}
+            isSubmitting={isSubmitting}
           />
         </>
       )}
