@@ -51,6 +51,7 @@ export default function CustomerMessagesPage() {
   const [currentUserName, setCurrentUserName] = useState("You");
   const [isLoading, setIsLoading] = useState(true);
   const socketRef = useRef<WebSocket | null>(null);
+  const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "offline">("connecting");
 
   // Helper to fetch session, work requests, and enriched messages
   const loadData = async () => {
@@ -266,29 +267,61 @@ export default function CustomerMessagesPage() {
   useEffect(() => {
     if (!siteId) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const backendHost = API_BASE_URL.replace(/^https?:\/\//, "");
-    const socket = new WebSocket(`${protocol}//${backendHost}/ws`);
-    socketRef.current = socket;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isMounted = true;
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: "authenticate" }));
-    };
+    const connect = () => {
+      if (!isMounted) return;
+      
+      setWsStatus("connecting");
+      
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const backendHost = API_BASE_URL.replace(/^https?:\/\//, "");
+      socket = new WebSocket(`${protocol}//${backendHost}/ws`);
+      socketRef.current = socket;
 
-    socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "new-message") {
-          // Trigger a silent reload of message data to sync everything
-          loadData();
+      socket.onopen = () => {
+        if (!isMounted) return;
+        socket?.send(JSON.stringify({ type: "authenticate" }));
+        setWsStatus("connected");
+      };
+
+      socket.onmessage = (event) => {
+        if (!isMounted) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "new-message") {
+            // Trigger a silent reload of message data to sync everything
+            loadData();
+          }
+        } catch (err) {
+          console.error("Error handling ws message:", err);
         }
-      } catch (err) {
-        console.error("Error handling ws message:", err);
-      }
+      };
+
+      socket.onclose = () => {
+        if (!isMounted) return;
+        setWsStatus("offline");
+        // Reconnect after 3 seconds
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = () => {
+        if (!isMounted) return;
+        setWsStatus("offline");
+        // Socket close event will handle reconnect
+      };
     };
+
+    connect();
 
     return () => {
-      if (socket.readyState === WebSocket.OPEN) {
+      isMounted = false;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (socket && socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
     };
@@ -332,12 +365,43 @@ export default function CustomerMessagesPage() {
       {/* ── Main Card ── */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Red Banner */}
-        <div className="bg-[#D12031] px-6 py-5">
-          <h2 className="text-white text-[17px] font-bold">Recent Messages</h2>
-          <p className="text-white/80 text-[12px] font-medium mt-0.5">
-            Your conversation history and work request logs
-          </p>
+        <div className="bg-[#D12031] px-6 py-5 flex items-center justify-between text-white">
+          <div>
+            <h2 className="text-white text-[17px] font-bold">Recent Messages</h2>
+            <p className="text-white/80 text-[12px] font-medium mt-0.5">
+              Your conversation history and work request logs
+            </p>
+          </div>
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-2">
+            {wsStatus === "connected" && (
+              <span className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Online
+              </span>
+            )}
+            {wsStatus === "connecting" && (
+              <span className="bg-amber-500/20 text-amber-200 border border-amber-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                Connecting...
+              </span>
+            )}
+            {wsStatus === "offline" && (
+              <span className="bg-black/20 text-red-200 border border-red-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                Offline
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Offline Warning Bar */}
+        {wsStatus === "offline" && (
+          <div className="bg-red-50 border-b border-red-100 px-6 py-2.5 flex items-center gap-2 text-[11px] font-bold text-red-700 transition-all">
+            <FiAlertCircle size={14} className="shrink-0 text-red-500" />
+            <span>Connection lost. We are trying to reconnect you. New messages might not appear in real-time.</span>
+          </div>
+        )}
 
         {/* Loading and empty states */}
         {isLoading ? (

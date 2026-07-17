@@ -257,59 +257,15 @@ export default function AdminLayout({
             </div>
           </div>
 
-          {/* Right: Profile Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setProfileDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none"
-            >
-              <div className="text-right hidden sm:block">
-                <div className="text-[14px] font-bold text-gray-900">{adminUser.name}</div>
-                <div className="text-[11px] text-gray-500">{adminUser.email}</div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-[#D12031]/10 flex items-center justify-center border border-[#D12031]/20 flex-shrink-0">
-                <span className="text-sm font-bold text-[#D12031]">{adminUser.initials}</span>
-              </div>
-              <FiChevronDown
-                size={16}
-                className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
-                  profileDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {profileDropdownOpen && (
-              <div className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-[dropdownFadeIn_0.15s_ease]">
-                {/* Profile header inside dropdown */}
-                <div className="px-4 py-3.5 border-b border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">{adminUser.name}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{adminUser.role}</div>
-                </div>
-
-                {/* Settings */}
-                <Link
-                  href="/admin/settings"
-                  onClick={() => setProfileDropdownOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-50/50"
-                >
-                  <FiSettings size={15} className="text-gray-400" />
-                  Settings
-                </Link>
-
-                {/* Logout */}
-                <button
-                  onClick={() => {
-                    setProfileDropdownOpen(false);
-                    setShowSignOutModal(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-[#D12031] hover:bg-red-50/50 transition-colors border-none text-left cursor-pointer"
-                >
-                  <FiLogOut size={15} />
-                  Sign Out
-                </button>
-              </div>
-            )}
+          {/* Right: Profile Info */}
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
+            <div className="text-right hidden sm:block">
+              <div className="text-[14px] font-bold text-gray-900">{adminUser.name}</div>
+              <div className="text-[11px] text-gray-500">{adminUser.email}</div>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-[#D12031]/10 flex items-center justify-center border border-[#D12031]/20 flex-shrink-0">
+              <span className="text-sm font-bold text-[#D12031]">{adminUser.initials}</span>
+            </div>
           </div>
         </header>
 
