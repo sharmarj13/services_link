@@ -79,7 +79,7 @@ export default function AdministrationOverviewPage() {
                   <th className="py-4 px-6 text-center">Health Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-150 text-[13px] text-gray-700 font-semibold">
+              <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
                 {[
                   { name: "Site A", address: "1201 Cardinal Blvd", users: 32, jobs: 4, status: "Operational", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
                   { name: "Site B", address: "845 Commerce Rd", users: 18, jobs: 2, status: "Operational", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },

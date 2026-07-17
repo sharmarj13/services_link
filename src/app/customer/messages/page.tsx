@@ -277,7 +277,13 @@ export default function CustomerMessagesPage() {
       setWsStatus("connecting");
       
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const backendHost = API_BASE_URL.replace(/^https?:\/\//, "");
+      let backendHost = API_BASE_URL ? API_BASE_URL.replace(/^https?:\/\//, "") : "localhost:5000";
+      
+      // If we're on localhost but backendHost somehow became empty
+      if (!backendHost || backendHost === "") {
+         backendHost = window.location.hostname === "localhost" ? "localhost:5000" : window.location.host;
+      }
+      
       socket = new WebSocket(`${protocol}//${backendHost}/ws`);
       socketRef.current = socket;
 
@@ -375,20 +381,23 @@ export default function CustomerMessagesPage() {
           {/* Connection Status Indicator */}
           <div className="flex items-center gap-2">
             {wsStatus === "connected" && (
-              <span className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="bg-white/15 backdrop-blur-md text-white border border-white/30 shadow-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400 shadow-[0_0_5px_rgba(74,222,128,1)]"></span>
+                </span>
                 Online
               </span>
             )}
             {wsStatus === "connecting" && (
-              <span className="bg-amber-500/20 text-amber-200 border border-amber-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
-                Connecting...
+              <span className="bg-white/10 backdrop-blur-md text-white border border-white/20 shadow-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="w-2.5 h-2.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                Connecting
               </span>
             )}
             {wsStatus === "offline" && (
-              <span className="bg-black/20 text-red-200 border border-red-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+              <span className="bg-black/20 backdrop-blur-md text-white/90 border border-black/10 shadow-inner px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
                 Offline
               </span>
             )}

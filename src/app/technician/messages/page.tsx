@@ -192,7 +192,23 @@ export default function MessagesPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [siteId]);
+
+  // Auto-open chat if chatId is in URL
+  useEffect(() => {
+    if (typeof window !== "undefined" && convList.length > 0 && !activeConv) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const chatId = urlParams.get("chatId");
+      if (chatId) {
+        const targetConv = convList.find(c => c.id === chatId);
+        if (targetConv) {
+          setActiveConv(targetConv);
+          // Clean up the URL so it doesn't reopen if the user closes it
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }
+    }
+  }, [convList, activeConv]);
 
   // Sync activeConv changes to keep it in sync with updated list
   useEffect(() => {
@@ -243,7 +259,13 @@ export default function MessagesPage() {
       setWsStatus("connecting");
       
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const backendHost = API_BASE_URL.replace(/^https?:\/\//, "");
+      let backendHost = API_BASE_URL ? API_BASE_URL.replace(/^https?:\/\//, "") : "localhost:5000";
+      
+      // If we're on localhost but backendHost somehow became empty
+      if (!backendHost || backendHost === "") {
+         backendHost = window.location.hostname === "localhost" ? "localhost:5000" : window.location.host;
+      }
+      
       socket = new WebSocket(`${protocol}//${backendHost}/ws`);
       socketRef.current = socket;
 
@@ -332,20 +354,23 @@ export default function MessagesPage() {
           {/* Connection Status Indicator */}
           <div className="flex items-center gap-2">
             {wsStatus === "connected" && (
-              <span className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="bg-white/15 backdrop-blur-md text-white border border-white/30 shadow-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400 shadow-[0_0_5px_rgba(74,222,128,1)]"></span>
+                </span>
                 Online
               </span>
             )}
             {wsStatus === "connecting" && (
-              <span className="bg-amber-500/20 text-amber-200 border border-amber-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
-                Connecting...
+              <span className="bg-white/10 backdrop-blur-md text-white border border-white/20 shadow-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="w-2.5 h-2.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                Connecting
               </span>
             )}
             {wsStatus === "offline" && (
-              <span className="bg-black/20 text-red-200 border border-red-500/35 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+              <span className="bg-black/20 backdrop-blur-md text-white/90 border border-black/10 shadow-inner px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
                 Offline
               </span>
             )}
@@ -362,7 +387,7 @@ export default function MessagesPage() {
 
         {/* Loading and empty states */}
         {isLoading ? (
-          <div className="divide-y divide-gray-150 bg-gray-50/50">
+          <div className="divide-y divide-gray-100 bg-gray-50/50">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="flex items-start justify-between p-6">
                 <div className="flex-1 pr-4">
@@ -384,7 +409,7 @@ export default function MessagesPage() {
           </div>
         ) : (
           /* Conversation List */
-          <div className="divide-y divide-gray-150 bg-gray-50/50">
+          <div className="divide-y divide-gray-100 bg-gray-50/50">
             {convList.map((conv) => (
               <div
                 key={conv.id}

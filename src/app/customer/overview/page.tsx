@@ -362,7 +362,7 @@ export default function CustomerOverviewPage() {
                   <th className="py-4 px-6 text-center">Avg Duration</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-150 text-[13px] text-gray-700 font-medium">
+              <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-medium">
                 {departmentsData.length > 0 ? (
                   departmentsData.map((row, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">

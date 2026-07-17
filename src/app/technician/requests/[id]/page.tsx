@@ -721,10 +721,13 @@ export default function JobDetailPage() {
               </div>
 
               <div className="w-full sm:w-1/2 flex gap-3">
-                <button className="flex-1 flex items-center justify-center gap-2 px-2 py-3.5 border border-[#D12031] text-[#D12031] bg-white hover:bg-red-50 font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer">
+                <Link 
+                  href={`/technician/messages?chatId=${job.id}`}
+                  className="flex-1 flex items-center justify-center gap-2 px-2 py-3.5 border border-[#D12031] text-[#D12031] bg-white hover:bg-red-50 font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer"
+                >
                   <FiMessageSquare size={16} />
                   <span>Message</span>
-                </button>
+                </Link>
 
                 <button
                   onClick={() => setIsNotifyOpen(true)}

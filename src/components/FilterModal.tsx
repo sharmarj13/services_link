@@ -70,7 +70,7 @@ export default function FilterModal({ isOpen, onClose, onApply, siteId, currentF
         <div className="pt-6 sm:pt-8 pb-5 sm:pb-6 px-5 sm:px-8 text-center shrink-0">
           <h2 className="text-[18px] font-bold text-gray-900">Filter</h2>
           <p className="text-[13px] text-gray-500 mt-2 font-medium">
-            Filter requests by department, priority, and date.
+            Filter requests by department and priority.
           </p>
         </div>
 
@@ -122,32 +122,6 @@ export default function FilterModal({ isOpen, onClose, onApply, siteId, currentF
                   <option>High</option>
                 </select>
                 <FiChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
-              </div>
-            </div>
-
-            {/* Start Date */}
-            <div className="space-y-1.5">
-              <label className="block text-[13px] font-medium text-gray-600">Start Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-4 pr-10 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors placeholder:text-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* End Date */}
-            <div className="space-y-1.5">
-              <label className="block text-[13px] font-medium text-gray-600">End Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-4 pr-10 py-3 text-[14px] font-medium text-gray-800 outline-none focus:border-[#D12031] transition-colors placeholder:text-gray-400"
-                />
               </div>
             </div>
           </div>

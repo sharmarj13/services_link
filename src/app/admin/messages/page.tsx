@@ -132,7 +132,7 @@ export default function AdminMessagesPage() {
           </div>
 
           {/* Conv List */}
-          <div className="divide-y divide-gray-150">
+          <div className="divide-y divide-gray-100">
             {convList.map((conv) => (
               <div
                 key={conv.id}

@@ -24,6 +24,10 @@ interface TechnicianLayoutProps {
   subtitle: string;
 }
 
+// Global cache to prevent flickering across page navigations since layout remounts
+let cachedUnreadMessages = 0;
+let cachedUnreadNotifications = 0;
+
 export default function TechnicianLayout({
   children,
   title,
@@ -43,6 +47,10 @@ export default function TechnicianLayout({
   const [userInitials, setUserInitials] = useState("");
   const [isUserLoading, setIsUserLoading] = useState(true);
 
+  // Badge counts (initialized from cache)
+  const [unreadMessages, setUnreadMessages] = useState(cachedUnreadMessages);
+  const [unreadNotifications, setUnreadNotifications] = useState(cachedUnreadNotifications);
+
   // Fetch logged-in user info
   useEffect(() => {
     const fetchUser = async () => {
@@ -59,6 +67,59 @@ export default function TechnicianLayout({
           setUserInitials(
             `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
           );
+
+          const userSiteId = u?.siteUser?.siteId;
+
+          const fetchBadges = () => {
+            if (userSiteId) {
+              apiFetch(`/api/sites/${userSiteId}/messages/unread-count`)
+                .then(r => r.json())
+                .then(d => {
+                  cachedUnreadMessages = d.count || 0;
+                  setUnreadMessages(cachedUnreadMessages);
+                })
+                .catch(() => {});
+            }
+            apiFetch(`/api/notifications/unread-count`)
+              .then(r => r.json())
+              .then(d => {
+                cachedUnreadNotifications = d.count || 0;
+                setUnreadNotifications(cachedUnreadNotifications);
+              })
+              .catch(() => {});
+          };
+
+          fetchBadges();
+          // Poll every 10s for new notifications/messages
+          const interval = setInterval(fetchBadges, 10000);
+
+          // Listen for manual read events (with a delay to allow DB to update)
+          const delayedFetch = () => setTimeout(fetchBadges, 800);
+          window.addEventListener("messagesRead", delayedFetch);
+          window.addEventListener("notificationsRead", delayedFetch);
+
+          // Optimistic instant updates
+          const handleDecMsg = (e: any) => {
+            const dec = e.detail || 1;
+            cachedUnreadMessages = Math.max(0, cachedUnreadMessages - dec);
+            setUnreadMessages(cachedUnreadMessages);
+          };
+          const handleDecNotif = (e: any) => {
+            const dec = e.detail || 1;
+            cachedUnreadNotifications = Math.max(0, cachedUnreadNotifications - dec);
+            setUnreadNotifications(cachedUnreadNotifications);
+          };
+
+          window.addEventListener("decrementMessages", handleDecMsg);
+          window.addEventListener("decrementNotifications", handleDecNotif);
+
+          return () => {
+            clearInterval(interval);
+            window.removeEventListener("messagesRead", delayedFetch);
+            window.removeEventListener("notificationsRead", delayedFetch);
+            window.removeEventListener("decrementMessages", handleDecMsg);
+            window.removeEventListener("decrementNotifications", handleDecNotif);
+          };
         }
       } catch (err) {
         console.error("Failed to fetch user:", err);
@@ -136,8 +197,18 @@ export default function TechnicianLayout({
                 isActive ? "bg-[#C7283A]" : "hover:bg-white/8"
               }`}
             >
-              <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-85"}`}>
+              <span className={`shrink-0 transition-opacity relative ${isActive ? "opacity-100" : "opacity-85"}`}>
                 {item.icon}
+                {item.name === "Messages" && unreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-white text-[#D12031] text-[9px] font-black px-1.5 py-[1px] rounded-full shadow-md animate-pulse">
+                    {unreadMessages > 99 ? '99+' : unreadMessages}
+                  </span>
+                )}
+                {item.name === "Notification" && unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1.5 bg-[#ffc107] text-[#856404] text-[9px] font-black px-1.5 py-[1px] rounded-full shadow-md animate-bounce ring-2 ring-[#D12031]">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
               </span>
               <span>{item.name}</span>
             </Link>

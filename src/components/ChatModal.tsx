@@ -15,6 +15,7 @@ export interface ChatMessage {
   isCurrentUser: boolean;
   role?: string;
   isNotice?: boolean;
+  isPending?: boolean;
 }
 
 interface ChatModalProps {
@@ -31,6 +32,7 @@ interface ChatModalProps {
 
 const isImageUrl = (text: string): boolean => {
   if (!text) return false;
+  if (text.startsWith("blob:")) return true;
   return (
     (text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/uploads/")) &&
     /\.(jpeg|jpg|gif|png|svg|webp)($|\?)/i.test(text)
@@ -53,6 +55,12 @@ export default function ChatModal({
   const [approvedNotices, setApprovedNotices] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    setOptimisticMessages([]);
+  }, [messages]);
 
   useEffect(() => {
     // Reconstruct approved state based on subsequent chat messages
@@ -82,20 +90,48 @@ export default function ChatModal({
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [isOpen, messages, isTyping]);
+  }, [isOpen, messages, optimisticMessages, isTyping]);
 
   if (!isOpen) return null;
 
+  const displayMessages = [...messages, ...optimisticMessages];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
-    onSendMessage(inputValue.trim());
+    const text = inputValue.trim();
+    if (!text) return;
+    
     setInputValue("");
+    
+    setOptimisticMessages(prev => [...prev, {
+      id: `temp-${Date.now()}`,
+      text: text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      senderName: "Sending...",
+      initials: "Me",
+      isCurrentUser: true,
+      isPending: true
+    }]);
+
+    onSendMessage(text);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    const tempId = `temp-${Date.now()}`;
+
+    setOptimisticMessages(prev => [...prev, {
+      id: tempId,
+      text: previewUrl,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      senderName: "Uploading...",
+      initials: "Me",
+      isCurrentUser: true,
+      isPending: true
+    }]);
 
     setIsUploading(true);
     try {
@@ -111,13 +147,16 @@ export default function ChatModal({
         const data = await res.json();
         if (data.url) {
           const absoluteUrl = data.url.startsWith("http") ? data.url : `${API_BASE_URL}${data.url}`;
+          URL.revokeObjectURL(previewUrl);
           onSendMessage(absoluteUrl);
         }
       } else {
         console.error("Attachment upload failed");
+        setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
       }
     } catch (err) {
       console.error("Error uploading attachment:", err);
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -158,14 +197,14 @@ export default function ChatModal({
 
         {/* Chat Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50 custom-scrollbar">
-          {messages.map((msg) => {
+          {displayMessages.map((msg) => {
             const isNoticeMsg = msg.isNotice || msg.text.includes("NOTICE & NOTIFY APPLIED");
             const isImg = isImageUrl(msg.text);
 
             return (
               <div
                 key={msg.id}
-                className={`flex items-end gap-2.5 ${msg.isCurrentUser ? "flex-row-reverse" : "flex-row"}`}
+                className={`flex items-end gap-2.5 ${msg.isCurrentUser ? "flex-row-reverse" : "flex-row"} ${msg.isPending ? "opacity-60 transition-opacity" : "opacity-100"}`}
               >
                 {/* Avatar */}
                 <div
@@ -180,8 +219,9 @@ export default function ChatModal({
                 {/* Bubble Body */}
                 <div className={`flex flex-col ${msg.isCurrentUser ? "items-end" : "items-start"} ${isNoticeMsg ? "w-full max-w-[85%]" : "max-w-[75%]"}`}>
                   {msg.senderName && (
-                    <span className="text-[9px] text-gray-400 font-black mb-1 px-1">
+                    <span className="text-[9px] text-gray-400 font-black mb-1 px-1 flex items-center gap-1.5">
                       {msg.senderName} {msg.role ? `(${msg.role})` : ""}
+                      {msg.isPending && <span className="w-2.5 h-2.5 border border-gray-300 border-t-gray-500 rounded-full animate-spin"></span>}
                     </span>
                   )}
                   {isNoticeMsg ? (() => {

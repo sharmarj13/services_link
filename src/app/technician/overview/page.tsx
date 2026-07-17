@@ -35,6 +35,8 @@ const INITIAL_FORM: WorkEntryForm = {
   quantity: "0.00",
   unit: "",
   additionalNotes: "",
+  beforePhotos: [],
+  afterPhotos: [],
 };
 
 interface Notice {
@@ -211,6 +213,8 @@ export default function App() {
       duration: parseInt(formData.duration) || null,
       notes: formData.additionalNotes || null,
       ppeUsed: formData.ppeUsed,
+      beforePhotoUrls: formData.beforePhotos || [],
+      afterPhotoUrls: formData.afterPhotos || [],
     };
 
     try {
@@ -309,6 +313,15 @@ export default function App() {
         <JobDetailsModal
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
+          onStartJob={(jobId) => {
+            handleStartJob(jobId);
+            setSelectedJob(null);
+          }}
+          onNoticeNotify={(jobId) => {
+            setActiveJobId(jobId);
+            setIsNotifyOpen(true);
+            setSelectedJob(null);
+          }}
         />
       ) : (
         <>
@@ -759,6 +772,7 @@ export default function App() {
             onChange={setFormData}
             onSubmit={handleSubmit}
             sites={sites}
+            activeRequests={activeJobs}
           />
         </>
       )}

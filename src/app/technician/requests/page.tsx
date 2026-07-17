@@ -36,7 +36,7 @@ interface JobRequest {
 }
 
 export default function WorkRequestsPage() {
-  const [activeFilter, setActiveFilter] = useState<"All" | "Assigned" | "In Progress" | "Completed">("All");
+  const [activeFilter, setActiveFilter] = useState<"All" | "Assigned" | "In Progress" | "Active" | "Completed">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -87,6 +87,7 @@ export default function WorkRequestsPage() {
       let backendStatus: string | undefined = undefined;
       if (statusToApply === "Assigned") backendStatus = "pending";
       else if (statusToApply === "In Progress") backendStatus = "in_progress";
+      else if (statusToApply === "Active") backendStatus = "active";
       else if (statusToApply === "Completed") backendStatus = "completed";
 
       if (backendStatus) {
@@ -259,7 +260,7 @@ export default function WorkRequestsPage() {
 
             {dropdownOpen && (
               <div className="absolute top-full left-0 right-0 bg-white border border-[#D12031] border-t-0 rounded-b-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-50 overflow-hidden">
-                {(["All", "Assigned", "In Progress", "Completed"] as const).map((s) => {
+                {(["All", "Assigned", "In Progress", "Active", "Completed"] as const).map((s) => {
                   const isSelected = activeFilter === s;
                   return (
                     <button

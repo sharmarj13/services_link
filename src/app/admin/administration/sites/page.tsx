@@ -314,7 +314,7 @@ export default function AdministrationSitesPage() {
                     <th className="py-4.5 px-6 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-150 text-[13px] text-gray-700 font-semibold">
+                <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
                   {displayedSites.map((site) => (
                     <tr
                       key={site.id}

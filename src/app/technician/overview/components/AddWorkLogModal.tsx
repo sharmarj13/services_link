@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import { CheckCircle, Image as ImageIcon } from "lucide-react";
+import { apiFetch } from "@/lib/apiFetch";
 
 export interface WorkEntryForm {
   requestTitle: string;
@@ -19,6 +20,8 @@ export interface WorkEntryForm {
   quantity: string;
   unit: string;
   additionalNotes: string;
+  beforePhotos: string[];
+  afterPhotos: string[];
 }
 
 export const PPE_OPTIONS = [
@@ -56,6 +59,7 @@ interface AddWorkLogModalProps {
   onChange: React.Dispatch<React.SetStateAction<WorkEntryForm>>;
   onSubmit: (e: React.FormEvent) => void;
   sites?: Array<{ id: string; name: string }>;
+  activeRequests?: Array<{ id: string; title: string }>;
 }
 
 export default function AddWorkLogModal({
@@ -65,7 +69,12 @@ export default function AddWorkLogModal({
   onChange,
   onSubmit,
   sites = [],
+  activeRequests = [],
 }: AddWorkLogModalProps) {
+  const [isUploading, setIsUploading] = useState<"before" | "after" | null>(null);
+  const beforeInputRef = useRef<HTMLInputElement>(null);
+  const afterInputRef = useRef<HTMLInputElement>(null);
+
   if (!isOpen) return null;
 
   const handleCheckboxChange = (ppe: string) => {
@@ -74,6 +83,64 @@ export default function AddWorkLogModal({
       ppeUsed: prev.ppeUsed.includes(ppe)
         ? prev.ppeUsed.filter((i) => i !== ppe)
         : [...prev.ppeUsed, ppe],
+    }));
+  };
+
+  const handleUploadBefore = () => {
+    beforeInputRef.current?.click();
+  };
+
+  const handleUploadAfter = () => {
+    afterInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: "before" | "after") => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(type);
+    try {
+      const currentPhotos = type === "before" ? (formData.beforePhotos || []) : (formData.afterPhotos || []);
+      const newUrls = [...currentPhotos];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const uploadData = new FormData();
+        uploadData.append("file", file);
+
+        const res = await apiFetch("/api/upload", {
+          method: "POST",
+          body: uploadData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          newUrls.push(data.url);
+        } else {
+          console.error("Failed to upload file:", file.name);
+        }
+      }
+
+      onChange((prev) => ({
+        ...prev,
+        [type === "before" ? "beforePhotos" : "afterPhotos"]: newUrls,
+      }));
+    } catch (err) {
+      console.error("Error uploading photos:", err);
+    } finally {
+      setIsUploading(null);
+      if (e.target) {
+        e.target.value = ""; // Clear file input value to allow uploading same file
+      }
+    }
+  };
+
+  const handleRemovePhoto = (index: number, type: "before" | "after") => {
+    const currentPhotos = type === "before" ? (formData.beforePhotos || []) : (formData.afterPhotos || []);
+    const updated = currentPhotos.filter((_, i) => i !== index);
+    onChange((prev) => ({
+      ...prev,
+      [type === "before" ? "beforePhotos" : "afterPhotos"]: updated,
     }));
   };
 
@@ -93,7 +160,7 @@ export default function AddWorkLogModal({
             id="modal-close-header"
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none p-1 block cursor-pointer transition-colors"
+            className="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none p-1 block cursor-pointer transition-colors border-none bg-transparent"
           >
             &times;
           </button>
@@ -118,9 +185,15 @@ export default function AddWorkLogModal({
               className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 hover:border-slate-300 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
             >
               <option value="" disabled>Brief description of work needed</option>
-              {REQUEST_TITLES.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
+              {activeRequests && activeRequests.length > 0 ? (
+                activeRequests.map((r) => (
+                  <option key={r.id} value={r.title}>{r.title}</option>
+                ))
+              ) : (
+                REQUEST_TITLES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))
+              )}
             </select>
           </div>
 
@@ -188,7 +261,7 @@ export default function AddWorkLogModal({
                 id="input-worktype"
                 value={formData.workType}
                 onChange={(e) => onChange({ ...formData, workType: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-955 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
               >
                 <option>Routine</option>
                 <option>Emergency</option>
@@ -280,7 +353,7 @@ export default function AddWorkLogModal({
                 id="input-priority"
                 value={formData.priority}
                 onChange={(e) => onChange({ ...formData, priority: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-955 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
               >
                 <option>Low</option>
                 <option>Medium</option>
@@ -298,7 +371,7 @@ export default function AddWorkLogModal({
                 required
                 value={formData.duration}
                 onChange={(e) => onChange({ ...formData, duration: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-955 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
               />
             </div>
           </div>
@@ -372,19 +445,87 @@ export default function AddWorkLogModal({
               Diagnostic Telemetry Verification Photos (Up to 10 each)
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Before Photos */}
-              <div className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-xl p-5 bg-red-50/10 hover:bg-red-50/20 cursor-pointer text-center flex flex-col items-center justify-center transition-all duration-150 group">
-                <ImageIcon className="text-[#D12031] mb-2 scale-100 group-hover:scale-110 transition-transform" size={24} />
-                <span className="text-xs font-bold text-slate-800">Before Work Photos</span>
-                <span className="text-[10px] text-slate-400 font-medium mt-1">Upload JPEG/PNG (Accepts drag and drop)</span>
+              
+              {/* Before Photos Upload Card */}
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  ref={beforeInputRef}
+                  onChange={(e) => handleFileChange(e, "before")}
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div 
+                  onClick={handleUploadBefore}
+                  className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-xl p-5 bg-red-50/10 hover:bg-red-50/20 cursor-pointer text-center flex flex-col items-center justify-center transition-all duration-150 group"
+                >
+                  <ImageIcon className="text-[#D12031] mb-2 scale-100 group-hover:scale-110 transition-transform" size={24} />
+                  <span className="text-xs font-bold text-slate-800">
+                    {isUploading === "before" ? "Uploading..." : "Before Work Photos"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium mt-1">Upload JPEG/PNG (Accepts drag and drop)</span>
+                </div>
+                
+                {/* Before Photos Preview List */}
+                {formData.beforePhotos && formData.beforePhotos.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {formData.beforePhotos.map((url, index) => (
+                      <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 group">
+                        <img src={url} alt="Before work" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(index, "before")}
+                          className="absolute inset-0 bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-none cursor-pointer text-xs"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* After Photos */}
-              <div className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-xl p-5 bg-red-50/10 hover:bg-red-50/20 cursor-pointer text-center flex flex-col items-center justify-center transition-all duration-150 group">
-                <ImageIcon className="text-[#D12031] mb-2 scale-100 group-hover:scale-110 transition-transform" size={24} />
-                <span className="text-xs font-bold text-slate-800">After Work Photos (0/10)</span>
-                <span className="text-[10px] text-slate-400 font-medium mt-1">Upload JPEG/PNG (Accepts drag and drop)</span>
+              {/* After Photos Upload Card */}
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  ref={afterInputRef}
+                  onChange={(e) => handleFileChange(e, "after")}
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div 
+                  onClick={handleUploadAfter}
+                  className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-xl p-5 bg-red-50/10 hover:bg-red-50/20 cursor-pointer text-center flex flex-col items-center justify-center transition-all duration-150 group"
+                >
+                  <ImageIcon className="text-[#D12031] mb-2 scale-100 group-hover:scale-110 transition-transform" size={24} />
+                  <span className="text-xs font-bold text-slate-800">
+                    {isUploading === "after" ? "Uploading..." : `After Work Photos (${formData.afterPhotos?.length || 0}/10)`}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium mt-1">Upload JPEG/PNG (Accepts drag and drop)</span>
+                </div>
+                
+                {/* After Photos Preview List */}
+                {formData.afterPhotos && formData.afterPhotos.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {formData.afterPhotos.map((url, index) => (
+                      <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 group">
+                        <img src={url} alt="After work" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(index, "after")}
+                          className="absolute inset-0 bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-none cursor-pointer text-xs"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+
             </div>
           </div>
         </form>
