@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -13,6 +13,7 @@ import {
 } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
 
 
 interface WorkRequest {
@@ -32,87 +33,40 @@ interface WorkRequest {
 }
 
 export default function AdminRequestsPage() {
-  // Mock Data Store in state
-  const [requests, setRequests] = useState<WorkRequest[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_requests");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            return parsed.map((r: WorkRequest) => {
-              let s = r.status;
-              if (s === "In-Progress") s = "Active";
-              if (s === "Pending") s = "Assigned";
-              return { ...r, status: s };
-            });
-          }
-        } catch { }
+  const [requests, setRequests] = useState<WorkRequest[]>([]);
+  const [techs, setTechs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRequests = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setRequests(data);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
-    return [
-      {
-        id: "99402",
-        title: "HVAC Compressor Maintenance",
-        location: "Facility Area 48",
-        site: "Site A",
-        priority: "High",
-        status: "Active",
-        category: "Maintenance",
-        customer: "Maurice Maldonado",
-        department: "Restrooms",
-        dueDate: "2026-06-25",
-        description: "HVAC Compressor is making loud grinding noise and cooling is inefficient. Inspect belt, bearings and refrigerant levels.",
-        scopeOfWork: "Inspect belt, bearings, compressor coils, refrigerant line pressure and clean air filters.",
-        assignedTechnician: "John Doe",
-      },
-      {
-        id: "99408",
-        title: "Routine Safety Inspection",
-        location: "Main Assembly Floor",
-        site: "Site B",
-        priority: "Low",
-        status: "Assigned",
-        category: "Safety",
-        customer: "Alice Smith",
-        department: "Kitchen",
-        dueDate: "2026-06-30",
-        description: "Semiannual safety inspection of sprinkler valves, emergency exits, fire extinguishers and hazard markings.",
-        scopeOfWork: "Check pressure gauges, examine lock-outs, verify clear pathways to emergency exits.",
-        assignedTechnician: "Unassigned",
-      },
-      {
-        id: "99411",
-        title: "Deep Carpet Cleaning",
-        location: "Main Lobby Area",
-        site: "Site C",
-        priority: "Medium",
-        status: "Completed",
-        category: "Cleaning",
-        customer: "Robert Brown",
-        department: "Lobby",
-        dueDate: "2026-06-18",
-        description: "High traffic carpet area needs heavy steam extraction cleaning and deodorizing before corporate meeting.",
-        scopeOfWork: "Pre-treat traffic lanes, steam clean entire area, deodorize, set air blowers.",
-        assignedTechnician: "Sarah Connor",
-      },
-      {
-        id: "99415",
-        title: "Warehouse Ventilation Repair",
-        location: "Loading Dock B",
-        site: "Site D",
-        priority: "High",
-        status: "Active",
-        category: "Maintenance",
-        customer: "Emma Wilson",
-        department: "Maintenance",
-        dueDate: "2026-06-28",
-        description: "Exhaust fan in Warehouse loading dock B is not turning on. Electrical panel check required.",
-        scopeOfWork: "Diagnose electrical power feed, check motor capacitor, replace motor if burned out.",
-        assignedTechnician: "Alex Mercer",
-      },
-    ];
-  });
+  };
+
+  const fetchTechs = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setTechs(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+    fetchTechs();
+  }, []);
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -191,104 +145,117 @@ export default function AdminRequestsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle || !formDesc || !formCust) {
       alert("Please fill in all required fields.");
       return;
     }
 
-    const newId = String(Math.floor(10000 + Math.random() * 90000));
-    const newReq: WorkRequest = {
-      id: newId,
-      title: formTitle,
-      location: formDept !== "None" ? `${formDept} Area` : "Facility Area 1A",
-      site: formSite,
-      priority: formPriority,
-      status: formStatus,
-      category: formCategory,
-      customer: formCust,
-      department: formDept,
-      dueDate: formDueDate || "2026-06-30",
-      description: formDesc,
-      scopeOfWork: formScope,
-      assignedTechnician: formTech,
-    };
-
-    const updated = [newReq, ...requests];
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: formTitle,
+          location: formDept !== "None" ? `${formDept} Area` : "Facility Area",
+          site: formSite,
+          priority: formPriority,
+          status: formStatus,
+          category: formCategory,
+          customer: formCust,
+          department: formDept,
+          dueDate: formDueDate || null,
+          description: formDesc,
+          scopeOfWork: formScope,
+          assignedTechnician: formTech,
+        }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsAddModalOpen(false);
+        resetForm();
+        showToast("Work Request created successfully!");
+      } else {
+        alert("Failed to create work request.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error creating work request.");
     }
-    setIsAddModalOpen(false);
-    resetForm();
-    showToast("Work Request created successfully!");
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeRequest) return;
 
-    const updatedRequests = requests.map((r) => {
-      if (r.id === activeRequest.id) {
-        return {
-          ...r,
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
           title: formTitle,
           description: formDesc,
           scopeOfWork: formScope,
-          dueDate: formDueDate,
+          dueDate: formDueDate || null,
           priority: formPriority,
           category: formCategory,
           department: formDept,
           site: formSite,
           customer: formCust,
           status: formStatus,
-          location: formDept !== "None" ? `${formDept} Area` : r.location,
+          location: formDept !== "None" ? `${formDept} Area` : activeRequest.location,
           assignedTechnician: formTech,
-        };
+        }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsEditModalOpen(false);
+        showToast("Work Request updated successfully!");
+      } else {
+        alert("Failed to update work request.");
       }
-      return r;
-    });
-
-    setRequests(updatedRequests);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updatedRequests));
+    } catch (err) {
+      console.error(err);
+      alert("Error updating work request.");
     }
-    setIsEditModalOpen(false);
-    showToast("Work Request updated successfully!");
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!activeRequest) return;
-    const updated = requests.filter((r) => r.id !== activeRequest.id);
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsDeleteModalOpen(false);
+        showToast("Work Request deleted successfully!");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting work request.");
     }
-    setIsDeleteModalOpen(false);
-    showToast("Work Request deleted successfully!");
   };
 
-  const handleQuickAssign = (id: string, technicianName: string) => {
-    const updated = requests.map((req) => {
-      if (req.id === id) {
-        return {
-          ...req,
-          assignedTechnician: technicianName,
-          status: technicianName === "Unassigned" ? "Assigned" : "Active",
-        };
+  const handleQuickAssign = async (id: string, technicianName: string) => {
+    try {
+      const status = technicianName === "Unassigned" ? "Pending" : "Active";
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ assignedTechnician: technicianName, status }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        showToast("Technician assigned!");
       }
-      return req;
-    });
-
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
-    }
-    if (technicianName === "Unassigned") {
-      showToast(`Technician unassigned. Status transitioned to Assigned.`);
-    } else {
-      showToast(`Technician ${technicianName} assigned successfully. Status transitioned to Active.`);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -454,10 +421,9 @@ export default function AdminRequestsPage() {
                       title="Quick Assign Technician"
                     >
                       <option value="Unassigned">Assign Tech...</option>
-                      <option value="John Doe">John Doe</option>
-                      <option value="Bob Johnson">Bob Johnson</option>
-                      <option value="Sarah Connor">Sarah Connor</option>
-                      <option value="Alex Mercer">Alex Mercer</option>
+                      {techs.map((t, idx) => (
+                        <option key={idx} value={t.name}>{t.name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -670,10 +636,9 @@ export default function AdminRequestsPage() {
                   className="w-full bg-white border border-gray-305 rounded-xl px-4 py-2.5 text-sm text-gray-950 outline-none focus:border-[#D12031]"
                 >
                   <option value="Unassigned">Unassigned (Assign Later)</option>
-                  <option value="John Doe">John Doe</option>
-                  <option value="Bob Johnson">Bob Johnson</option>
-                  <option value="Sarah Connor">Sarah Connor</option>
-                  <option value="Alex Mercer">Alex Mercer</option>
+                  {techs.map((t, idx) => (
+                    <option key={idx} value={t.name}>{t.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -885,10 +850,9 @@ export default function AdminRequestsPage() {
                   className="w-full bg-white border border-gray-305 rounded-xl px-4 py-2.5 text-sm text-gray-955 outline-none focus:border-[#D12031]"
                 >
                   <option value="Unassigned">Unassigned</option>
-                  <option value="John Doe">John Doe</option>
-                  <option value="Bob Johnson">Bob Johnson</option>
-                  <option value="Sarah Connor">Sarah Connor</option>
-                  <option value="Alex Mercer">Alex Mercer</option>
+                  {techs.map((t, idx) => (
+                    <option key={idx} value={t.name}>{t.name}</option>
+                  ))}
                 </select>
               </div>
             </form>

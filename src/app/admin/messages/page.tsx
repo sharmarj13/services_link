@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FiUser } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import ChatModal from "@/components/ChatModal";
+import { API_BASE_URL } from "@/config";
 
 interface ChatMessage {
-  id: number;
+  id: number | string;
   sender: "customer" | "technician" | "admin";
   senderName: string;
   text: string;
@@ -15,7 +16,7 @@ interface ChatMessage {
 }
 
 interface Conversation {
-  id: number;
+  id: string;
   title: string;
   preview: string;
   customerName: string;
@@ -26,86 +27,158 @@ interface Conversation {
   messages: ChatMessage[];
 }
 
-const CONVERSATIONS: Conversation[] = [
-  {
-    id: 1,
-    title: "HVAC Repair - Unit 101",
-    preview: "Admin joined: I have updated the work request checklist details.",
-    customerName: "Maurice Maldonado",
-    techName: "John Doe",
-    messageCount: 5,
-    badge: "New",
-    date: "6/19/2026",
-    messages: [
-      { id: 1, sender: "customer", senderName: "Maurice Maldonado", text: "Hi John, are you still coming tomorrow at 9 AM?", time: "09:12 AM", initials: "MM" },
-      { id: 2, sender: "technician", senderName: "John Doe", text: "Yes, I will be there. Bringing the replacement coolant filters.", time: "10:05 AM", initials: "JD" },
-      { id: 3, sender: "admin", senderName: "Admin User", text: "I have updated the work request checklist details. Please review.", time: "10:46 AM", initials: "AD" },
-    ],
-  },
-  {
-    id: 2,
-    title: "Plumbing Issue - Lobby restroom",
-    preview: "Technician Bob: Found the pipe leak, looking for spare valves.",
-    customerName: "Maurice Maldonado",
-    techName: "Bob Johnson",
-    messageCount: 2,
-    badge: "Active",
-    date: "6/18/2026",
-    messages: [
-      { id: 1, sender: "customer", senderName: "Maurice Maldonado", text: "Water is overflowing from the main lobby tank.", time: "Yesterday, 3:00 PM", initials: "MM" },
-      { id: 2, sender: "technician", senderName: "Bob Johnson", text: "Found the pipe leak, looking for spare valves.", time: "Yesterday, 3:15 PM", initials: "BJ" },
-    ],
-  },
-  {
-    id: 3,
-    title: "Routine Safety Inspection",
-    preview: "Customer Alice: The safety markings are complete.",
-    customerName: "Alice Smith",
-    techName: "Bob Johnson",
-    messageCount: 3,
-    badge: null,
-    date: "6/15/2026",
-    messages: [
-      { id: 1, sender: "admin", senderName: "Admin User", text: "Please start the inspection of the main sprinkler valves.", time: "June 15, 08:00 AM", initials: "AD" },
-      { id: 2, sender: "technician", senderName: "Bob Johnson", text: "Beginning inspection now.", time: "June 15, 08:30 AM", initials: "BJ" },
-      { id: 3, sender: "customer", senderName: "Alice Smith", text: "The safety markings are complete.", time: "June 15, 11:00 AM", initials: "AS" },
-    ],
-  },
-];
-
 export default function AdminMessagesPage() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const [convList, setConvList] = useState(CONVERSATIONS);
+  const [convList, setConvList] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSendMessage = (text: string) => {
-    if (!activeConv) return;
+  const socketRef = useRef<WebSocket | null>(null);
+  const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "offline">("connecting");
 
-    const newMsg: ChatMessage = {
-      id: Date.now(),
-      sender: "admin",
-      senderName: "Admin User",
-      text: text,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      initials: "AD",
+  // Fetch initial conversations
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch("/api/admin/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        // Add empty messages array for now, fetched on demand
+        const formatted = data.map((c: any) => ({ ...c, messages: [] }));
+        setConvList(formatted);
+      }
+    } catch (err) {
+      console.error("Failed to fetch conversations:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // Fetch messages for active conversation
+  useEffect(() => {
+    if (!activeConv || activeConv.messages.length > 0) return;
+    
+    async function fetchMessages() {
+      try {
+        const res = await fetch(`/api/admin/conversations/${activeConv!.id}/messages`);
+        if (res.ok) {
+          const msgs = await res.json();
+          setActiveConv(prev => prev ? { ...prev, messages: msgs } : null);
+          setConvList(prev => prev.map(c => c.id === activeConv!.id ? { ...c, messages: msgs } : c));
+        }
+      } catch (err) {
+        console.error("Failed to fetch messages:", err);
+      }
+    }
+    fetchMessages();
+  }, [activeConv?.id]);
+
+  // WebSocket Connection
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let reconnectTimer: NodeJS.Timeout;
+
+    const connectWebSocket = () => {
+      setWsStatus("connecting");
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      let backendHost = API_BASE_URL ? API_BASE_URL.replace(/^https?:\/\//, "") : "localhost:5000";
+      if (!backendHost || backendHost === "") {
+         backendHost = window.location.hostname === "localhost" ? "localhost:5000" : window.location.host;
+      }
+      
+      socket = new WebSocket(`${protocol}//${backendHost}/ws`);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        setWsStatus("connected");
+        // Authenticate using the HTTPOnly cookie implicitly sent
+        socket?.send(JSON.stringify({ type: "authenticate" }));
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === "new-message") {
+            const msg = data.data;
+            // Update convList preview & message count
+            setConvList(prev => prev.map(c => {
+              if (c.id === msg.workRequestId) {
+                const isExisting = c.messages.some((m: any) => m.id === msg.id);
+                if (isExisting) return c;
+                return {
+                  ...c,
+                  preview: `${msg.senderName}: ${msg.text}`,
+                  messageCount: c.messageCount + 1,
+                  badge: "Active",
+                  messages: [...c.messages, msg]
+                };
+              }
+              return c;
+            }));
+
+            // Update activeConv if this message belongs to it
+            setActiveConv(prev => {
+              if (prev && prev.id === msg.workRequestId) {
+                const isExisting = prev.messages.some((m: any) => m.id === msg.id);
+                if (isExisting) return prev;
+                return {
+                  ...prev,
+                  messages: [...prev.messages, msg],
+                  preview: `${msg.senderName}: ${msg.text}`,
+                  messageCount: prev.messageCount + 1,
+                };
+              }
+              return prev;
+            });
+          }
+        } catch (err) {
+          console.error("Error handling ws message:", err);
+        }
+      };
+
+      socket.onclose = () => {
+        setWsStatus("offline");
+        reconnectTimer = setTimeout(connectWebSocket, 5000);
+      };
+
+      socket.onerror = () => {
+        setWsStatus("offline");
+      };
     };
 
-    const updated = convList.map((c) =>
-      c.id === activeConv.id
-        ? {
-          ...c,
-          messages: [...c.messages, newMsg],
-          preview: `Admin joined: ${text}`,
-          messageCount: c.messageCount + 1,
-        }
-        : c
-    );
+    connectWebSocket();
 
-    setConvList(updated);
-    setActiveConv({
-      ...activeConv,
-      messages: [...activeConv.messages, newMsg],
-      messageCount: activeConv.messageCount + 1,
-    });
+    return () => {
+      clearTimeout(reconnectTimer);
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    };
+  }, []);
+
+  const handleSendMessage = async (text: string) => {
+    if (!activeConv) return;
+
+    try {
+      const res = await fetch(`/api/admin/conversations/${activeConv.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to send message");
+      }
+      
+      // The websocket will broadcast it back to us, so we don't necessarily need to add it manually here.
+      // However, to ensure immediate feedback, we can append it locally if it doesn't exist yet when WS fires.
+    } catch (err) {
+      console.error(err);
+      alert("Failed to send message");
+    }
   };
 
   return (
@@ -125,14 +198,38 @@ export default function AdminMessagesPage() {
                 Monitor and participate in active service chat threads
               </p>
             </div>
-            <span className="bg-white/15 px-3 py-1 rounded-full text-[9px] font-bold tracking-wider flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Live Supervision Mode
-            </span>
+            
+            {wsStatus === "connected" && (
+              <span className="bg-white/15 px-3 py-1 rounded-full text-[9px] font-bold tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Live Supervision Mode
+              </span>
+            )}
+            {wsStatus === "connecting" && (
+              <span className="bg-white/15 px-3 py-1 rounded-full text-[9px] font-bold tracking-wider flex items-center gap-1">
+                <div className="w-2.5 h-2.5 border-2 border-t-white/30 border-white rounded-full animate-spin"></div>
+                Connecting...
+              </span>
+            )}
+            {wsStatus === "offline" && (
+              <span className="bg-white/15 px-3 py-1 rounded-full text-[9px] font-bold tracking-wider flex items-center gap-1 text-red-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                Offline
+              </span>
+            )}
           </div>
 
           {/* Conv List */}
-          <div className="divide-y divide-gray-100">
+          {loading ? (
+            <div className="flex justify-center p-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D12031]"></div>
+            </div>
+          ) : convList.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 font-medium">
+              No active conversations found.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 h-[600px] overflow-y-auto">
             {convList.map((conv) => (
               <div
                 key={conv.id}
@@ -178,7 +275,8 @@ export default function AdminMessagesPage() {
                 </span>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </div>
 
       </div>

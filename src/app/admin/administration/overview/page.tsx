@@ -1,10 +1,32 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { FiUsers, FiShield, FiActivity } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
 
 export default function AdministrationOverviewPage() {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/users/stats`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user stats", err);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const counts = stats?.counts || { totalUsers: 0, customers: 0, technicians: 0, superAdmins: 0 };
+  const sitesStats = stats?.sitesStats || [];
+  const recentUsers = stats?.recentUsers || [];
+
   return (
     <AdminLayout
       title="Administration Overview"
@@ -21,7 +43,7 @@ export default function AdministrationOverviewPage() {
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Total Users</span>
-              <span className="text-2xl font-black text-gray-900 block mt-1">125</span>
+              <span className="text-2xl font-black text-gray-900 block mt-1">{counts.totalUsers}</span>
             </div>
           </div>
 
@@ -32,7 +54,7 @@ export default function AdministrationOverviewPage() {
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Active Customers</span>
-              <span className="text-2xl font-black text-gray-900 block mt-1">84</span>
+              <span className="text-2xl font-black text-gray-900 block mt-1">{counts.customers}</span>
             </div>
           </div>
 
@@ -43,7 +65,7 @@ export default function AdministrationOverviewPage() {
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Technicians</span>
-              <span className="text-2xl font-black text-gray-900 block mt-1">36</span>
+              <span className="text-2xl font-black text-gray-900 block mt-1">{counts.technicians}</span>
             </div>
           </div>
 
@@ -54,7 +76,7 @@ export default function AdministrationOverviewPage() {
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Super Admins</span>
-              <span className="text-2xl font-black text-gray-900 block mt-1">05</span>
+              <span className="text-2xl font-black text-gray-900 block mt-1">{counts.superAdmins}</span>
             </div>
           </div>
         </div>
@@ -80,13 +102,7 @@ export default function AdministrationOverviewPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
-                {[
-                  { name: "Site A", address: "1201 Cardinal Blvd", users: 32, jobs: 4, status: "Operational", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-                  { name: "Site B", address: "845 Commerce Rd", users: 18, jobs: 2, status: "Operational", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-                  { name: "Site C", address: "302 Industrial Pkwy", users: 25, jobs: 5, status: "Maintenance", color: "text-amber-700 bg-amber-50 border-amber-100" },
-                  { name: "Site D", address: "15 Logistics Dr", users: 10, jobs: 1, status: "Operational", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-                  { name: "Site E", address: "77 Innovation Ave", users: 40, jobs: 12, status: "Alert State", color: "text-[#D12031] bg-red-50 border-red-100" },
-                ].map((row, idx) => (
+                {sitesStats.map((row: any, idx: number) => (
                   <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                     <td className="py-4 px-6 font-bold text-gray-900">{row.name}</td>
                     <td className="py-4 px-6 font-medium text-gray-500">{row.address}</td>
@@ -115,12 +131,7 @@ export default function AdministrationOverviewPage() {
           </div>
 
           <div className="space-y-4">
-            {[
-              { name: "John Smith", role: "Technician", site: "Site A", time: "2 hours ago", initials: "JS", bg: "bg-emerald-50 text-emerald-700" },
-              { name: "Robert Davis", role: "Customer", site: "Site C", time: "1 day ago", initials: "RD", bg: "bg-blue-50 text-blue-700" },
-              { name: "Emma Watson", role: "Customer", site: "Site D", time: "2 days ago", initials: "EW", bg: "bg-blue-50 text-blue-700" },
-              { name: "David Miller", role: "Technician", site: "Site E", time: "3 days ago", initials: "DM", bg: "bg-emerald-50 text-emerald-700" },
-            ].map((usr, i) => (
+            {recentUsers.map((usr: any, i: number) => (
               <div key={i} className="flex items-center justify-between p-3.5 border border-gray-150 rounded-xl hover:bg-gray-50/50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${usr.bg}`}>

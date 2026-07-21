@@ -11,6 +11,8 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
+import { useEffect } from "react";
 
 interface AdminUser {
   id: string;
@@ -33,41 +35,44 @@ interface BusinessAccount {
 }
 
 export default function AdministrationSettingsPage() {
-  // Mock Admin accounts
-  const [admins, setAdmins] = useState<AdminUser[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_admins");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return [
-      { id: "1", name: "Admin User", email: "admin@servicelink.com", role: "Super Admin", password: "admin", phone: "+1 (555) 019-2834", department: "Executive Office", siteAccess: "All Sites" },
-      { id: "2", name: "Support Desk", email: "support@servicelink.com", role: "Operations Lead", password: "admin", phone: "+1 (555) 982-1102", department: "Operations", siteAccess: "Site A, Site B" },
-    ];
-  });
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock Business accounts
-  const [businesses, setBusinesses] = useState<BusinessAccount[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_businesses");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // ignore
-        }
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAdmins(data);
       }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    } finally {
+      setIsLoading(false);
     }
-    return [
-      { id: "1", businessName: "Cardinal Group Ltd", contact: "Maurice Maldonado", email: "maurice@cardinal.com", sitesAllocated: "Site A, Site B", status: "Active" },
-      { id: "2", businessName: "CleanCorp LLC", contact: "John Miller", email: "john@cleancorp.com", sitesAllocated: "Site C", status: "Active" },
-    ];
-  });
+  };
+
+  const [businesses, setBusinesses] = useState<BusinessAccount[]>([]);
+  const [isLoadingSites, setIsLoadingSites] = useState(true);
+
+  const fetchSites = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setBusinesses(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch sites:", err);
+    } finally {
+      setIsLoadingSites(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchSites();
+  }, []);
 
   // Form states - Admin
   const [adminName, setAdminName] = useState("");
@@ -91,83 +96,121 @@ export default function AdministrationSettingsPage() {
     setTimeout(() => setToastMsg(""), 3000);
   };
 
-  const handleAddAdminSubmit = (e: React.FormEvent) => {
+  const handleAddAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminName || !adminEmail || !adminPass) {
-      alert("Please fill in all admin fields.");
+      alert("Please fill in all user fields.");
       return;
     }
-    const newAdmin: AdminUser = {
-      id: String(Date.now()),
-      name: adminName,
-      email: adminEmail,
-      role: adminRole,
-      password: adminPass,
-      phone: adminPhone || "+1 (555) 000-0000",
-      department: adminDept,
-      siteAccess: adminSites,
-    };
-    const updated = [...admins, newAdmin];
-    setAdmins(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_admins", JSON.stringify(updated));
-    }
-    setAdminName("");
-    setAdminEmail("");
-    setAdminPass("");
-    setAdminPhone("");
-    setAdminDept("Operations");
-    setAdminSites("All Sites");
-    showToast("Super admin account registered successfully!");
-  };
-
-  const handleDeleteAdmin = (id: string) => {
-    let currentAdminId = "";
-    if (typeof window !== "undefined") {
-      const current = localStorage.getItem("servicelink_current_admin");
-      if (current) {
-        try {
-          currentAdminId = JSON.parse(current).id;
-        } catch { }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: adminName,
+          email: adminEmail,
+          password: adminPass,
+          phone: adminPhone,
+          department: adminDept,
+          role: adminRole,
+          siteAccess: adminSites
+        })
+      });
+      if (res.ok) {
+        await fetchUsers();
+        setAdminName("");
+        setAdminEmail("");
+        setAdminPass("");
+        setAdminPhone("");
+        setAdminDept("Operations");
+        setAdminRole("Super Admin");
+        setAdminSites("All Sites");
+        showToast("User account created successfully!");
+      } else {
+        const err = await res.json();
+        alert(err.message || "Failed to create user.");
       }
-    }
-    if (id === currentAdminId || id === "1") {
-      alert("You cannot delete the primary or currently active logged-in administrator account.");
-      return;
-    }
-    if (confirm("Are you sure you want to revoke this administrator's access?")) {
-      const updated = admins.filter((adm) => adm.id !== id);
-      setAdmins(updated);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("servicelink_admins", JSON.stringify(updated));
-      }
-      showToast("Administrator access revoked.");
+    } catch (err) {
+      console.error(err);
+      alert("Error creating user");
     }
   };
 
-  const handleAddBizSubmit = (e: React.FormEvent) => {
+  const handleDeleteAdmin = async (id: string) => {
+    if (confirm("Are you sure you want to revoke this user's access?")) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        if (res.ok) {
+          await fetchUsers();
+          showToast("User access revoked.");
+        } else {
+          const err = await res.json();
+          alert(err.message || "Failed to delete user.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Error deleting user");
+      }
+    }
+  };
+
+  const handleAddBizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bizName || !bizContact || !bizEmail) {
       alert("Please fill in all business fields.");
       return;
     }
-    const newBiz: BusinessAccount = {
-      id: String(Date.now()),
-      businessName: bizName,
-      contact: bizContact,
-      email: bizEmail,
-      sitesAllocated: bizSites,
-      status: "Active",
-    };
-    const updated = [...businesses, newBiz];
-    setBusinesses(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_businesses", JSON.stringify(updated));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          businessName: bizName,
+          contact: bizContact,
+          email: bizEmail,
+          status: "active",
+        }),
+      });
+      if (res.ok) {
+        await fetchSites();
+        setBizName("");
+        setBizContact("");
+        setBizEmail("");
+        showToast("Business entity registered successfully!");
+      } else {
+        const err = await res.json();
+        alert(err.message || "Failed to create business.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error creating business");
     }
-    setBizName("");
-    setBizContact("");
-    setBizEmail("");
-    showToast("Business platform sharing active!");
+  };
+
+  const handleDeleteBiz = async (id: string) => {
+    if (confirm("Are you sure you want to suspend this business?")) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/sites/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        if (res.ok) {
+          await fetchSites();
+          showToast("Business account suspended.");
+        } else {
+          const err = await res.json();
+          alert(err.message || "Failed to suspend business.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Error suspending business");
+      }
+    }
   };
 
   return (
@@ -298,7 +341,7 @@ export default function AdministrationSettingsPage() {
             <div>
               <div className="flex items-center gap-2 mb-5">
                 <FiShield className="text-[#D12031]" size={18} />
-                <h3 className="text-sm font-bold text-gray-900">Current Platform Administrators</h3>
+                <h3 className="text-sm font-bold text-gray-900">Current Platform Users</h3>
               </div>
 
               <div className="divide-y divide-gray-100">
@@ -320,16 +363,14 @@ export default function AdministrationSettingsPage() {
                       <span className="bg-red-50 text-[#D12031] border border-red-100 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                         {adm.role}
                       </span>
-                      {adm.id !== "1" && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAdmin(adm.id)}
-                          className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
-                          title="Revoke Admin Access"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAdmin(adm.id)}
+                        className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
+                        title="Revoke Access"
+                      >
+                        <FiTrash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -352,67 +393,50 @@ export default function AdministrationSettingsPage() {
               </p>
 
               <form onSubmit={handleAddBizSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Business Company Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. BuildersInc Co."
-                    value={bizName}
-                    onChange={(e) => setBizName(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Account Contact Representative *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Sarah Connor"
-                    value={bizContact}
-                    onChange={(e) => setBizContact(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Contact Email *</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Business / Site Name</label>
                     <input
-                      type="email"
-                      required
-                      placeholder="sarah@builders.com"
-                      value={bizEmail}
-                      onChange={(e) => setBizEmail(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                      placeholder="e.g. Cardinal Group Ltd"
+                      value={bizName}
+                      onChange={(e) => setBizName(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Allocated Access Sites</label>
-                    <select
-                      value={bizSites}
-                      onChange={(e) => setBizSites(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-850 outline-none focus:border-[#D12031]"
-                    >
-                      <option>Site A</option>
-                      <option>Site B</option>
-                      <option>Site C</option>
-                      <option>Site D</option>
-                      <option>Site E</option>
-                      <option>Site A, Site B</option>
-                      <option>All Sites (Superadmin)</option>
-                    </select>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Primary Contact Person</label>
+                    <input
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                      placeholder="e.g. Jane Doe"
+                      value={bizContact}
+                      onChange={(e) => setBizContact(e.target.value)}
+                    />
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-[#D12031] hover:bg-[#b91c2c] text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm"
-                >
-                  <FiPlus size={15} />
-                  <span>Onboard Business Partner</span>
-                </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Contact Email</label>
+                    <input
+                      type="email"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                      placeholder="contact@company.com"
+                      value={bizEmail}
+                      onChange={(e) => setBizEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex flex-col justify-end">
+                    <button
+                      type="submit"
+                      className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm h-[46px]"
+                    >
+                      <FiPlus size={15} />
+                      <span>Register Entity</span>
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
           </div>

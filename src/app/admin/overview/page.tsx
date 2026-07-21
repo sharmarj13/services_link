@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   FiClipboard,
@@ -14,47 +14,85 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
 
 export default function AdminOverviewPage() {
   const [timeScope, setTimeScope] = useState("This Month");
   const [hoveredPie, setHoveredPie] = useState<number | null>(null);
   const [hoveredLinePoint, setHoveredLinePoint] = useState<number | null>(null);
 
-  // Hardcoded stats based on timeScope
-  const stats = {
-    "All Time": { total: 412, active: 56, techs: "9", pending: 12 },
-    "This Month": { total: 142, active: 24, techs: "8", pending: 5 },
-    "This Week": { total: 34, active: 11, techs: "8", pending: 2 },
-  }[timeScope as "All Time" | "This Month" | "This Week"] || { total: 142, active: 24, techs: "8 / 10", pending: 5 };
+  const [statsData, setStatsData] = useState<any>(null);
 
-  // Data for Line Chart: Weekly request trend (last 7 days)
-  const lineData = [
-    { label: "Mon", val: 15, x: 40, y: 140 },
-    { label: "Tue", val: 28, x: 100, y: 100 },
-    { label: "Wed", val: 22, x: 160, y: 120 },
-    { label: "Thu", val: 38, x: 220, y: 70 },
-    { label: "Fri", val: 45, x: 280, y: 50 },
-    { label: "Sat", val: 12, x: 340, y: 150 },
-    { label: "Sun", val: 18, x: 400, y: 130 },
-  ];
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStatsData(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+      }
+    };
+    fetchStats();
+  }, [timeScope]);
+
+  // Dynamic stats
+  const stats = statsData ? {
+    total: statsData.total,
+    active: statsData.active,
+    techs: statsData.techs,
+    pending: statsData.pending
+  } : { total: 0, active: 0, techs: 0, pending: 0 };
+
+  // Data for Line Chart: Weekly request trend
+  const rawLineData = statsData?.weeklyTrend?.length > 0 
+    ? statsData.weeklyTrend 
+    : [
+        { label: "Mon", val: 0 }, { label: "Tue", val: 0 }, { label: "Wed", val: 0 },
+        { label: "Thu", val: 0 }, { label: "Fri", val: 0 }, { label: "Sat", val: 0 }, { label: "Sun", val: 0 }
+      ];
+
+  const yAxisMax = Math.max(...rawLineData.map((d: any) => Number(d.val)), 10);
+  const lineData = rawLineData.map((d: any, i: number) => ({
+    label: d.label,
+    val: Number(d.val),
+    x: 40 + i * (360 / Math.max(rawLineData.length - 1, 1)), // spread evenly across 400 width
+    y: 170 - (Number(d.val) / yAxisMax) * 130,
+  }));
 
   // Data for Donut Chart: Request status distribution
-  const pieData = [
-    { label: "Completed", val: 78, color: "#10B981", percent: 55 },
-    { label: "Active", val: 42, color: "#D12031", percent: 30 },
-    { label: "Assigned", val: 22, color: "#F59E0B", percent: 15 },
-  ];
+  const statusColors: Record<string, string> = {
+    'completed': '#10B981', 'in_progress': '#D12031', 'pending': '#F59E0B', 'cancelled': '#6B7280'
+  };
+  const rawPieData = statsData?.statusDist || [];
+  const totalPieVal = rawPieData.reduce((acc: number, d: any) => acc + Number(d.val), 0) || 1;
+  let currentOffset = 0;
+  
+  const pieData = rawPieData.length > 0 ? rawPieData.map((d: any) => {
+    const percent = Math.round((Number(d.val) / totalPieVal) * 100);
+    const dasharray = `${percent} ${100 - percent}`;
+    const dashoffset = -currentOffset;
+    currentOffset += percent;
+    return {
+      label: d.label.charAt(0).toUpperCase() + d.label.slice(1).replace('_', ' '),
+      val: Number(d.val),
+      color: statusColors[d.label] || '#9CA3AF',
+      percent,
+      dasharray,
+      dashoffset
+    };
+  }) : [{ label: "No Data", val: 0, color: "#e5e7eb", percent: 100, dasharray: "100 0", dashoffset: 0 }];
 
   // Data for Bar Chart: Requests by department
-  const barData = [
-    { label: "Kitchen", val: 45 },
-    { label: "Lobby", val: 32 },
-    { label: "Restroom", val: 58 },
-    { label: "Maintenance", val: 74 },
-    { label: "Bedroom", val: 22 },
-  ];
+  const barData = statsData?.departments?.length > 0 
+    ? statsData.departments.map((d: any) => ({ label: d.label, val: Number(d.val) }))
+    : [{ label: "General", val: 0 }];
 
-  const maxBarVal = Math.max(...barData.map((d) => d.val));
+  const maxBarVal = Math.max(...barData.map((d: any) => d.val), 1);
 
   return (
     <AdminLayout
@@ -197,9 +235,9 @@ export default function AdminOverviewPage() {
                 <line x1="40" y1="170" x2="420" y2="170" stroke="#e2e8f0" strokeWidth="1.5" />
 
                 {/* Y Axis Labels */}
-                <text x="30" y="44" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">50</text>
-                <text x="30" y="94" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">30</text>
-                <text x="30" y="144" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">10</text>
+                <text x="30" y="44" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">{yAxisMax}</text>
+                <text x="30" y="94" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">{Math.round(yAxisMax * 0.66)}</text>
+                <text x="30" y="144" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">{Math.round(yAxisMax * 0.33)}</text>
                 <text x="30" y="174" fill="#94a3b8" fontSize="10" fontWeight="bold" textAnchor="end">0</text>
 
                 {/* Gradient Fill under path */}
@@ -212,13 +250,13 @@ export default function AdminOverviewPage() {
 
                 {/* Path Area */}
                 <path
-                  d={`M ${lineData[0].x} 170 L ${lineData.map((d) => `${d.x} ${d.y}`).join(" L ")} L ${lineData[lineData.length - 1].x} 170 Z`}
+                  d={`M ${lineData[0].x} 170 L ${lineData.map((d: any) => `${d.x} ${d.y}`).join(" L ")} L ${lineData[lineData.length - 1].x} 170 Z`}
                   fill="url(#areaGradient)"
                 />
 
                 {/* Path Line */}
                 <path
-                  d={lineData.map((d, i) => `${i === 0 ? "M" : "L"} ${d.x} ${d.y}`).join(" ")}
+                  d={lineData.map((d: any, i: number) => `${i === 0 ? "M" : "L"} ${d.x} ${d.y}`).join(" ")}
                   fill="none"
                   stroke="#D12031"
                   strokeWidth="3.5"
@@ -227,7 +265,7 @@ export default function AdminOverviewPage() {
                 />
 
                 {/* Data Points & Interactive hover zones */}
-                {lineData.map((d, i) => (
+                {lineData.map((d: any, i: number) => (
                   <g key={i} className="cursor-pointer" onMouseEnter={() => setHoveredLinePoint(i)} onMouseLeave={() => setHoveredLinePoint(null)}>
                     {/* Pulsing Outer Circle on Hover */}
                     <circle
@@ -254,7 +292,7 @@ export default function AdminOverviewPage() {
                 ))}
 
                 {/* X Axis Labels */}
-                {lineData.map((d, i) => (
+                {lineData.map((d: any, i: number) => (
                   <text key={i} x={d.x} y="192" fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle">
                     {d.label}
                   </text>
@@ -291,51 +329,23 @@ export default function AdminOverviewPage() {
                 {/* Base Circle */}
                 <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#f1f5f9" strokeWidth="4.5" />
 
-                {/* Segments: Completed, Active, Assigned */}
-                {/* Completed (55%) */}
-                <circle
-                  cx="21"
-                  cy="21"
-                  r="15.915"
-                  fill="transparent"
-                  stroke="#10B981"
-                  strokeWidth={hoveredPie === 0 ? "5.5" : "4.5"}
-                  strokeDasharray="55 45"
-                  strokeDashoffset="0"
-                  className="cursor-pointer transition-all duration-200"
-                  onMouseEnter={() => setHoveredPie(0)}
-                  onMouseLeave={() => setHoveredPie(null)}
-                />
-
-                {/* Active (30%) */}
-                <circle
-                  cx="21"
-                  cy="21"
-                  r="15.915"
-                  fill="transparent"
-                  stroke="#D12031"
-                  strokeWidth={hoveredPie === 1 ? "5.5" : "4.5"}
-                  strokeDasharray="30 70"
-                  strokeDashoffset="-55"
-                  className="cursor-pointer transition-all duration-200"
-                  onMouseEnter={() => setHoveredPie(1)}
-                  onMouseLeave={() => setHoveredPie(null)}
-                />
-
-                {/* Assigned (15%) */}
-                <circle
-                  cx="21"
-                  cy="21"
-                  r="15.915"
-                  fill="transparent"
-                  stroke="#F59E0B"
-                  strokeWidth={hoveredPie === 2 ? "5.5" : "4.5"}
-                  strokeDasharray="15 85"
-                  strokeDashoffset="-85"
-                  className="cursor-pointer transition-all duration-200"
-                  onMouseEnter={() => setHoveredPie(2)}
-                  onMouseLeave={() => setHoveredPie(null)}
-                />
+                {/* Dynamic Segments */}
+                {pieData.map((p: any, idx: number) => (
+                  <circle
+                    key={idx}
+                    cx="21"
+                    cy="21"
+                    r="15.915"
+                    fill="transparent"
+                    stroke={p.color}
+                    strokeWidth={hoveredPie === idx ? "5.5" : "4.5"}
+                    strokeDasharray={p.dasharray}
+                    strokeDashoffset={p.dashoffset}
+                    className="cursor-pointer transition-all duration-200"
+                    onMouseEnter={() => setHoveredPie(idx)}
+                    onMouseLeave={() => setHoveredPie(null)}
+                  />
+                ))}
               </svg>
 
               {/* Central Text overlay */}
@@ -351,7 +361,7 @@ export default function AdminOverviewPage() {
 
             {/* Legend checklist */}
             <div className="grid grid-cols-2 gap-2 text-xs font-semibold text-gray-700">
-              {pieData.map((p, idx) => (
+              {pieData.map((p: any, idx: number) => (
                 <div
                   key={idx}
                   className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors ${hoveredPie === idx ? "bg-gray-50 border-gray-200" : "border-transparent"
@@ -379,7 +389,7 @@ export default function AdminOverviewPage() {
             </div>
 
             <div className="flex-1 flex flex-col gap-4">
-              {barData.map((b, idx) => {
+              {barData.map((b: any, idx: number) => {
                 const percent = (b.val / maxBarVal) * 100;
                 return (
                   <div

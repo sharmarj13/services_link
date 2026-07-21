@@ -266,50 +266,44 @@ export default function AdminRequestDetailPage() {
     if (params?.id) {
       const id = params.id as string;
       
-      // Look up notice for this jobId
+      // Look up notice for this jobId (mock for now until notices are fully migrated)
       const foundNotice = MOCK_NOTICES.find((n) => n.jobId === id);
       setNotice(foundNotice || null);
 
-      let loadedFromStorage = false;
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("servicelink_requests");
-        if (saved) {
-          try {
-            const reqs = JSON.parse(saved);
-            const found = reqs.find((r: { id: string }) => r.id === id);
-            if (found) {
-              let s = found.status;
-              if (s === "In-Progress") s = "Active";
-              if (s === "Pending") s = "Assigned";
-              setJob({
-                ...DEFAULT_JOB_DETAIL,
-                id: found.id,
-                title: found.title,
-                status: s,
-                customer: found.customer,
-                siteLocation: `${found.site}, ${found.location || "Facility Area 1A"}`,
-                department: found.department !== "None" ? found.department : "Maintenance & Ops",
-                detailedDescription: found.description,
-                scopeOfWork: found.scopeOfWork || DEFAULT_JOB_DETAIL.scopeOfWork,
-                assignedTechnician: found.assignedTechnician || "Unassigned",
-              });
-              loadedFromStorage = true;
-            }
-          } catch {}
-        }
-      }
-
-      if (!loadedFromStorage) {
-        if (id.startsWith("9942")) {
-          setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Active", assignedTechnician: "John Doe" });
-        } else if (id.startsWith("9941")) {
-          setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Completed", assignedTechnician: "Sarah Connor" });
-        } else if (id.startsWith("9943")) {
-          setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Active", assignedTechnician: "Bob Johnson" });
-        } else {
+      const fetchJob = async () => {
+        try {
+          const res = await fetch(`/api/admin/work-requests/${id}`);
+          if (res.ok) {
+            const found = await res.json();
+            let s = found.status.toLowerCase();
+            if (s === "in_progress" || s === "in-progress") s = "Active";
+            else if (s === "pending") s = "Assigned";
+            else s = found.status;
+            
+            setJob({
+              ...DEFAULT_JOB_DETAIL,
+              id: found.id,
+              title: found.title,
+              status: s,
+              customer: found.customer,
+              siteLocation: `${found.site}, ${found.location || "Facility Area 1A"}`,
+              department: found.department !== "None" ? found.department : "Maintenance & Ops",
+              detailedDescription: found.description,
+              scopeOfWork: found.scopeOfWork || DEFAULT_JOB_DETAIL.scopeOfWork,
+              assignedTechnician: found.assignedTechnician || "Unassigned",
+              category: found.category || DEFAULT_JOB_DETAIL.category,
+              priority: found.priority || DEFAULT_JOB_DETAIL.priority,
+            });
+          } else {
+            // Fallback if not found
+            setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Assigned", assignedTechnician: "Unassigned" });
+          }
+        } catch (err) {
+          console.error("Failed to fetch job detail:", err);
           setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Assigned", assignedTechnician: "Unassigned" });
         }
-      }
+      };
+      fetchJob();
     }
   }, [params]);
 

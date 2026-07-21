@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiMail, FiLogIn } from "react-icons/fi";
 import { AuthLayout, Logo, InputField, PasswordInput, PrimaryButton } from "@/components/AuthUI";
+import { API_BASE_URL } from "@/config";
 
 interface AdminUser {
   id: string;
@@ -20,48 +21,53 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (typeof window !== "undefined") {
-      // Retrieve admins from localStorage or fallback to defaults
-      let admins: AdminUser[] = [];
-      const saved = localStorage.getItem("servicelink_admins");
-      if (saved) {
-        try {
-          admins = JSON.parse(saved);
-        } catch {
-          // ignore
-        }
+    try {
+      // 1. Log in via backend
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.message || "Invalid email address or password. Please try again.");
+        return;
       }
 
-      if (admins.length === 0) {
-        admins = [
-          { id: "1", name: "Admin User", email: "admin@servicelink.com", role: "Super Admin", password: "admin" },
-          { id: "2", name: "Support Desk", email: "support@servicelink.com", role: "Operations Lead", password: "admin" },
-        ];
-        localStorage.setItem("servicelink_admins", JSON.stringify(admins));
+      // 2. Verify admin role
+      const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        credentials: "include",
+      });
+
+      if (!meRes.ok) {
+        setError("Failed to verify user profile.");
+        return;
       }
 
-      // Find admin by email
-      const matchedAdmin = admins.find(
-        (adm) => adm.email.toLowerCase() === email.trim().toLowerCase()
-      );
+      const meData = await meRes.json();
+      const role = meData.user?.siteUser?.role || meData.user?.globalRole;
 
-      if (matchedAdmin) {
-        // Match password (if stored, otherwise use fallback "admin")
-        const expectedPwd = matchedAdmin.password || "admin";
-        if (password === expectedPwd) {
-          localStorage.setItem("servicelink_current_admin", JSON.stringify(matchedAdmin));
-          router.push("/admin/overview");
-          return;
-        }
+      if (role !== "admin") {
+        // If they are not an admin, we must log them out immediately
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        setError("Unauthorized: Admin access required.");
+        return;
       }
 
-      setError("Invalid email address or password. Please try again.");
-    } else {
+      // Success - Redirect to admin overview
       router.push("/admin/overview");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("An unexpected error occurred. Make sure the server is running.");
     }
   };
 
