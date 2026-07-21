@@ -3,24 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
-import {
-  FiRotateCcw,
-  FiUser,
-  FiMapPin,
-  FiBriefcase,
-  FiCalendar,
-  FiFileText,
-  FiCpu,
-  FiPhoneCall,
-  FiMail,
-  FiPlus,
-  FiTrash2,
-  FiEdit2,
-  FiClock,
-  FiCheckCircle,
-  FiArrowLeft,
-  FiAlertCircle,
-} from "react-icons/fi";
+import { FiEdit, FiMapPin, FiCalendar, FiUser, FiInfo, FiFileText, FiAlertCircle, FiMessageSquare, FiCpu, FiCheckCircle, FiPaperclip, FiBriefcase, FiX, FiCheck, FiRotateCcw, FiTrash2, FiClock, FiArrowLeft, FiEdit2, FiPhoneCall, FiMail, FiPlus } from "react-icons/fi";
+import { apiFetch } from "@/lib/apiFetch";
 import AdminLayout from "@/components/AdminLayout";
 
 interface NoticeDetail {
@@ -466,29 +450,24 @@ export default function AdminRequestDetailPage() {
                         const select = document.getElementById("details-assign-tech-select") as HTMLSelectElement;
                         const val = select.value;
                         if (val && val !== "Unassigned") {
-                          // Update job status and tech
-                          const updatedJob: JobDetail = {
-                            ...job,
-                            assignedTechnician: val,
-                            status: "Active"
+                          const assignRequest = async () => {
+                            try {
+                              const res = await apiFetch(`/api/admin/work-requests/${job.id}`, {
+                                method: "PUT",
+                                body: JSON.stringify({ assignedEmployeeId: val, status: "active" })
+                              });
+                              if (res.ok) {
+                                alert(`Technician assigned successfully. Status updated to Active.`);
+                                window.location.reload();
+                              } else {
+                                alert("Failed to assign technician.");
+                              }
+                            } catch (err) {
+                              console.error(err);
+                              alert("An error occurred while assigning.");
+                            }
                           };
-                          setJob(updatedJob);
-                          // Persist update in requests database
-                          if (typeof window !== "undefined") {
-                            let reqs: Array<{ id: string; assignedTechnician?: string; status?: string }> = [];
-                            const saved = localStorage.getItem("servicelink_requests");
-                            if (saved) {
-                              try { reqs = JSON.parse(saved); } catch {}
-                            }
-                            const index = reqs.findIndex((r: { id: string }) => r.id === job.id);
-                            if (index !== -1) {
-                              reqs[index].assignedTechnician = val;
-                              reqs[index].status = "Active";
-                              localStorage.setItem("servicelink_requests", JSON.stringify(reqs));
-                            }
-                          }
-                          alert(`Technician ${val} assigned successfully. Status updated to Active.`);
-                          window.location.reload();
+                          assignRequest();
                         } else {
                           alert("Please select a technician.");
                         }

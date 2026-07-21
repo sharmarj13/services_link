@@ -812,41 +812,17 @@ export default function App() {
 
                 const noticeText = `⚠️ NOTICE & NOTIFY APPLIED\n\nType: ${data.noticeType}\nPriority: ${data.priority}\nDescription: ${data.description}`;
 
-                const chatKey = `servicelink_chat_${activeJobId}`;
-                const storedMessages = JSON.parse(localStorage.getItem(chatKey) || "[]");
-                let updatedMessages = [...storedMessages];
-                if (updatedMessages.length === 0) {
-                  updatedMessages = [
-                    {
-                      id: 1,
-                      text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                      time: "6/5/2026, 1:47:10 PM",
-                      senderName: "Maurice Maldonado",
-                      initials: "MM",
-                      isCurrentUser: false,
-                    },
-                    {
-                      id: 2,
-                      text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                      time: "YOU • 10:46 AM",
-                      senderName: "Karl Smith",
-                      initials: "KS",
-                      isCurrentUser: true,
-                    }
-                  ];
+                try {
+                  await apiFetch("/api/messages", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      workRequestId: activeJobId,
+                      content: noticeText
+                    }),
+                  });
+                } catch (msgErr) {
+                  console.error("Failed to post notice message to chat:", msgErr);
                 }
-                const newMsg = {
-                  id: `notice_${activeJobId}_${Date.now()}`,
-                  text: noticeText,
-                  time: `YOU • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-                  senderName: "Karl Smith",
-                  initials: "KS",
-                  isCurrentUser: true,
-                  isNotice: true,
-                  noticeDetails: newNotice,
-                };
-                updatedMessages.push(newMsg);
-                localStorage.setItem(chatKey, JSON.stringify(updatedMessages));
               }
             } catch (err) {
               console.error(err);
