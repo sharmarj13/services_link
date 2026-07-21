@@ -55,14 +55,14 @@ export default function CustomerLayout({
         const res = await apiFetch(`/api/auth/me`);
         if (res.ok) {
           const data = await res.json();
-          if (data.user) {
-            const first = data.user.firstName || "";
-            const last = data.user.lastName || "";
+          if ((data.data?.user || data.user)) {
+            const first = (data.data?.user || data.user).firstName || "";
+            const last = (data.data?.user || data.user).lastName || "";
             setUserName(`${first} ${last}`.trim() || "User");
-            setUserEmail(data.user.email || "");
+            setUserEmail((data.data?.user || data.user).email || "");
             setUserInitials(`${first[0] || ""}${last[0] || ""}`.toUpperCase() || "U");
             
-            const userSiteId = data.user?.siteUser?.siteId;
+            const userSiteId = (data.data?.user || data.user)?.siteUser?.siteId;
             
             const fetchBadges = () => {
               if (userSiteId) {

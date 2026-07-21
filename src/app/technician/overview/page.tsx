@@ -122,7 +122,7 @@ export default function App() {
       let currentUserId = null;
       if (userRes.ok) {
         const userData = await userRes.json();
-        currentUserId = userData.user?.id;
+        currentUserId = (userData.data?.user || userData.user)?.id;
       }
       
       const res = await apiFetch("/api/work-requests/tech/all-sites?status=active");

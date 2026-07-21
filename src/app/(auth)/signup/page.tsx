@@ -117,7 +117,7 @@ export default function SignupPage() {
       }
 
       const meData = await meResponse.json();
-      const userRole = meData.user?.siteUser?.role || apiRole;
+      const userRole = (meData.data?.user || meData.user)?.siteUser?.role || apiRole;
 
       if (userRole === "tech") {
         router.push("/technician/overview");

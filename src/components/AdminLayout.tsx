@@ -66,7 +66,7 @@ export default function AdminLayout({
         const data = await res.json();
         
         // Ensure user is an admin
-        const role = data.user?.siteUser?.role || data.user?.globalRole;
+        const role = (data.data?.user || data.user)?.siteUser?.role || (data.data?.user || data.user)?.globalRole;
         if (role !== "admin") {
           // If logged in but not admin, kick to login (or respective dashboard)
           if (isMounted) router.push("/admin/login");
@@ -74,7 +74,7 @@ export default function AdminLayout({
         }
 
         if (isMounted) {
-          const user = data.user;
+          const user = (data.data?.user || data.user);
           const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin User";
           const parts = fullName.split(" ");
           let initials = "";

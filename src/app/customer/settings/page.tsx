@@ -49,10 +49,10 @@ export default function CustomerSettingsPage() {
         const res = await apiFetch(`/api/auth/me`);
         if (res.ok) {
           const data = await res.json();
-          if (data.user) {
-            setFirstName(data.user.firstName || "");
-            setLastName(data.user.lastName || "");
-            setEmail(data.user.email || "");
+          if ((data.data?.user || data.user)) {
+            setFirstName((data.data?.user || data.user).firstName || "");
+            setLastName((data.data?.user || data.user).lastName || "");
+            setEmail((data.data?.user || data.user).email || "");
           }
         }
       } catch (error) {

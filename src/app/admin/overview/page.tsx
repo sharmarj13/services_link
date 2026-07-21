@@ -115,7 +115,17 @@ export default function AdminOverviewPage() {
             </div>
           </div>
 
-          <div className="relative inline-block self-start sm:self-center shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const url = `${API_BASE_URL}/api/admin/export?type=csv`;
+                window.open(url, "_blank");
+              }}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-semibold rounded-xl flex items-center gap-2 transition-colors border border-gray-200 shadow-sm"
+            >
+              <FiClipboard size={16} /> Export CSV
+            </button>
+            <div className="relative inline-block self-start sm:self-center shrink-0">
             <select
               id="select-overview-scope"
               value={timeScope}

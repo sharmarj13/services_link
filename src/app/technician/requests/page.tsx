@@ -76,7 +76,7 @@ export default function WorkRequestsPage() {
         const userRes = await apiFetch("/api/auth/me");
         if (userRes.ok) {
           const userData = await userRes.json();
-          userId = userData.user?.id;
+          userId = (userData.data?.user || userData.user)?.id;
           setCurrentUserId(userId);
         }
       }

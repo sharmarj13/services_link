@@ -41,7 +41,11 @@ export default function AdministrationSitesPage() {
       const res = await fetch("/api/admin/sites");
       if (res.ok) {
         const data = await res.json();
-        setSites(data);
+        if (data.status) {
+          setSites(data.data || []);
+        } else {
+          console.error("Failed to fetch sites:", data.message);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch sites:", err);

@@ -55,8 +55,8 @@ export default function LoginPage() {
       console.log("User details:", meData);
 
       // Extract user role from siteUser details
-      const role = meData.user?.siteUser?.role || "customer";
-      const isAdmin = meData.user?.isAdmin || meData.user?.siteUser?.role === "admin";
+      const role = (meData.data?.user || meData.user)?.siteUser?.role || "customer";
+      const isAdmin = (meData.data?.user || meData.user)?.isAdmin || (meData.data?.user || meData.user)?.siteUser?.role === "admin";
 
       if (isAdmin) {
         router.push("/admin/overview");

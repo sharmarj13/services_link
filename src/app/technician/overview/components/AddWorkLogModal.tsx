@@ -117,10 +117,15 @@ export default function AddWorkLogModal({
 
         if (res.ok) {
           const data = await res.json();
-          // Convert relative /uploads/ path to absolute API path for proper rendering
-          const { API_BASE_URL } = require("@/config");
-          const absoluteUrl = data.url.startsWith("http") ? data.url : `${API_BASE_URL}${data.url}`;
-          newUrls.push(absoluteUrl);
+          if (data.status && data.data?.url) {
+            // Convert relative /uploads/ path to absolute API path for proper rendering
+            const { API_BASE_URL } = require("@/config");
+            const url = data.data.url;
+            const absoluteUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+            newUrls.push(absoluteUrl);
+          } else {
+            console.error("Upload failed in response:", data.message);
+          }
         } else {
           console.error("Failed to upload file:", file.name);
         }

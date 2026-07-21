@@ -47,10 +47,10 @@ export default function MessagesPage() {
       const meRes = await apiFetch("/api/auth/me");
       if (!meRes.ok) return;
       const meData = await meRes.json();
-      const sId = meData.user?.siteUser?.siteId;
-      const uId = meData.user?.id;
-      const fName = meData.user?.firstName || "";
-      const lName = meData.user?.lastName || "";
+      const sId = (meData.data?.user || meData.user)?.siteUser?.siteId;
+      const uId = (meData.data?.user || meData.user)?.id;
+      const fName = (meData.data?.user || meData.user)?.firstName || "";
+      const lName = (meData.data?.user || meData.user)?.lastName || "";
       const name = `${fName} ${lName}`.trim() || "You";
 
       if (uId) setUserId(uId);

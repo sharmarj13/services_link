@@ -80,7 +80,8 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      const updatedUser = await res.json();
+      const updatedUserRes = await res.json();
+      const updatedUser = updatedUserRes.data || updatedUserRes;
       setCurrentAdmin({ ...currentAdmin, ...updatedUser });
       showToast("Profile settings saved successfully!");
       

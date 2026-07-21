@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
       }
 
       const meData = await meRes.json();
-      const role = meData.user?.siteUser?.role || meData.user?.globalRole;
+      const role = (meData.data?.user || meData.user)?.siteUser?.role || (meData.data?.user || meData.user)?.globalRole;
 
       if (role !== "admin") {
         // If they are not an admin, we must log them out immediately

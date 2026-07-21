@@ -59,7 +59,7 @@ export default function TechnicianLayout({
         const res = await apiFetch("/api/auth/me");
         if (res.ok) {
           const data = await res.json();
-          const u = data.user;
+          const u = (data.data?.user || data.user);
           const first = u?.firstName || "";
           const last = u?.lastName || "";
           setUserName(`${first} ${last}`.trim());

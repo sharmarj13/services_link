@@ -163,7 +163,7 @@ export default function CustomerRequestsPage() {
           return;
         }
         const meData = await meRes.json();
-        const siteId = meData.user?.siteUser?.siteId;
+        const siteId = (meData.data?.user || meData.user)?.siteUser?.siteId;
         if (!siteId) {
           setError("No site assigned to user context.");
           setIsLoading(false);
@@ -171,7 +171,7 @@ export default function CustomerRequestsPage() {
         }
 
         setUserContext({
-          userId: meData.user.id,
+          userId: (meData.data?.user || meData.user).id,
           siteId,
         });
 

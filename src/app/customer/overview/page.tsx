@@ -158,7 +158,7 @@ export default function CustomerOverviewPage() {
         }
         
         const meData = await meResponse.json();
-        const siteId = meData.user?.siteUser?.siteId;
+        const siteId = (meData.data?.user || meData.user)?.siteUser?.siteId;
         if (!siteId) {
           setError("No site assigned to this user context.");
           setIsLoading(false);
@@ -166,10 +166,10 @@ export default function CustomerOverviewPage() {
         }
         
         setUserContext({
-          userId: meData.user.id,
+          userId: (meData.data?.user || meData.user).id,
           siteId,
-          name: meData.user.firstName + " " + meData.user.lastName,
-          email: meData.user.email
+          name: (meData.data?.user || meData.user).firstName + " " + (meData.data?.user || meData.user).lastName,
+          email: (meData.data?.user || meData.user).email
         });
 
         await fetchDashboardData(siteId);

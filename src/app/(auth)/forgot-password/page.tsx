@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // Next.js router
 import { FiMail, FiLink, FiArrowLeft, FiCheckCircle } from "react-icons/fi";
 import { AuthLayout, Logo, InputField, PrimaryButton } from "@/components/AuthUI";
 import { API_BASE_URL } from "@/config";
@@ -11,6 +12,7 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +33,9 @@ export default function ForgotPasswordPage() {
 
       // Always show success (backend never reveals if email exists — security best practice)
       setSuccess(true);
+      setTimeout(() => {
+        router.push(`/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      }, 2000);
     } catch {
       setError("Server connection failed. Please try again later.");
     } finally {
@@ -61,7 +66,7 @@ export default function ForgotPasswordPage() {
             a password reset link has been sent to that address.
           </p>
           <p className="text-[13px] text-center text-gray-500 font-medium">
-            Please check your inbox and spam folder.
+            Please check your inbox and spam folder. Redirecting to OTP page...
           </p>
         </div>
       ) : (
