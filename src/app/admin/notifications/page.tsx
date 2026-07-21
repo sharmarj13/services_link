@@ -1,73 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FiTool, FiCheck, FiAlertCircle, FiBell } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 
 interface NotificationItem {
-  id: number;
-  type: "assigned" | "completed" | "notice" | "system";
+  id: string;
+  type: string;
   title: string;
-  description: string;
-  time: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
-const UNREAD_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 1,
-    type: "notice",
-    title: "New Notice Review Required",
-    description: "Technician John Doe submitted a new safety notice 'Restroom Water Spill Warning' for approval.",
-    time: "2 mins ago"
-  },
-  {
-    id: 2,
-    type: "completed",
-    title: "Request Marked Completed",
-    description: "HVAC Compressor Maintenance at Warehouse D has been marked completed by John Doe.",
-    time: "45 mins ago"
-  },
-  {
-    id: 3,
-    type: "assigned",
-    title: "New Job Request Created",
-    description: "Customer Maurice Maldonado created a new request 'Main Lobby Carpet Clean' for Site C.",
-    time: "2 hours ago"
-  }
-];
-
-const READ_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 4,
-    type: "system",
-    title: "System Backup Successful",
-    description: "Weekly cloud backup and audit logging completed successfully.",
-    time: "Yesterday"
-  },
-  {
-    id: 5,
-    type: "system",
-    title: "Business Account Created",
-    description: "New partner business account 'CleanCorp LLC' registered by Super Admin.",
-    time: "2 days ago"
-  }
-];
-
 export default function AdminNotificationsPage() {
-  const [unreadNotifs, setUnreadNotifs] = useState<NotificationItem[]>(UNREAD_NOTIFICATIONS);
-  const [readNotifs, setReadNotifs] = useState<NotificationItem[]>(READ_NOTIFICATIONS);
+  const [unreadNotifs, setUnreadNotifs] = useState<NotificationItem[]>([]);
+  const [readNotifs, setReadNotifs] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const markAsRead = (id: number) => {
-    const notif = unreadNotifs.find((n) => n.id === id);
-    if (notif) {
-      setUnreadNotifs((prev) => prev.filter((n) => n.id !== id));
-      setReadNotifs((prev) => [notif, ...prev]);
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch("/api/admin/notifications");
+      if (res.ok) {
+        const data: NotificationItem[] = await res.json();
+        setUnreadNotifs(data.filter((n) => !n.isRead));
+        setReadNotifs(data.filter((n) => n.isRead));
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const markAllAsRead = () => {
-    setReadNotifs((prev) => [...unreadNotifs, ...prev]);
-    setUnreadNotifs([]);
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const markAsRead = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}/read`, { method: "PUT" });
+      if (res.ok) {
+        const notif = unreadNotifs.find((n) => n.id === id);
+        if (notif) {
+          setUnreadNotifs((prev) => prev.filter((n) => n.id !== id));
+          setReadNotifs((prev) => [{ ...notif, isRead: true }, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch("/api/admin/notifications/mark-all-read", { method: "POST" });
+      if (res.ok) {
+        setReadNotifs((prev) => [
+          ...unreadNotifs.map(n => ({ ...n, isRead: true })), 
+          ...prev
+        ]);
+        setUnreadNotifs([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getIcon = (type: string) => {
@@ -114,36 +111,45 @@ export default function AdminNotificationsPage() {
           </h3>
 
           <div className="space-y-3">
-            {unreadNotifs.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-xs font-semibold">
-                No unread notifications.
-              </div>
-            ) : (
-              unreadNotifs.map((notif) => (
-                <div
-                  key={notif.id}
-                  onClick={() => markAsRead(notif.id)}
-                  className="flex items-center gap-4 p-4.5 rounded-2xl border border-red-100 bg-red-50/10 shadow-xs transition-all hover:shadow-md cursor-pointer group"
-                >
-                  <div className="shrink-0 bg-white rounded-full p-2.5 shadow-xs border border-gray-150 flex items-center justify-center w-11 h-11">
-                    {getIcon(notif.type)}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-[13.5px] font-bold text-gray-950 truncate group-hover:text-[#D12031] transition-colors">
-                      {notif.title}
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1 font-semibold leading-relaxed">
-                      {notif.description}
-                    </p>
-                  </div>
-
-                  <div className="shrink-0 text-[10px] font-bold text-gray-450 self-start pt-1">
-                    {notif.time}
-                  </div>
+            {unreadNotifs.length === 0 && !loading && (
+              <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-gray-100">
+                  <FiCheck className="text-emerald-500" size={20} />
                 </div>
-              ))
+                <p className="text-[13px] text-gray-500 font-medium">You're all caught up!</p>
+              </div>
             )}
+            
+            {loading && (
+              <div className="p-8 text-center flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D12031]"></div>
+              </div>
+            )}
+
+            {unreadNotifs.map((notif) => (
+              <div
+                key={notif.id}
+                className="group flex gap-4 p-5 bg-white rounded-xl border border-gray-200 shadow-sm transition-all hover:shadow-md hover:border-red-200 cursor-pointer"
+                onClick={() => markAsRead(notif.id)}
+              >
+                <div className="shrink-0 mt-1">
+                  {getIcon(notif.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-4 mb-1">
+                    <h3 className="text-[14px] font-bold text-gray-900 leading-snug">
+                      {notif.title}
+                    </h3>
+                    <span className="text-[11px] text-gray-400 font-semibold shrink-0 whitespace-nowrap">
+                      {new Date(notif.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-gray-600 font-medium leading-relaxed">
+                    {notif.message}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -152,31 +158,35 @@ export default function AdminNotificationsPage() {
           <h3 className="text-sm font-bold text-gray-950">Cleared Notifications</h3>
 
           <div className="space-y-3">
-            {readNotifs.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-450 text-xs font-semibold">
-                No history notifications.
+            {readNotifs.length === 0 && !loading && (
+              <div className="p-8 text-center text-[13px] text-gray-400 font-medium border-t border-gray-100">
+                No past notifications
               </div>
-            ) : (
-              readNotifs.map((notif) => (
-                <div
-                  key={notif.id}
-                  className="flex items-center gap-4 p-4.5 rounded-2xl border border-gray-200 bg-gray-50/40 shadow-xs transition-all hover:shadow-sm"
-                >
-                  <div className="shrink-0 bg-white rounded-full p-2.5 shadow-xs border border-gray-150 flex items-center justify-center w-11 h-11 opacity-60">
-                    {getIcon(notif.type)}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-[13.5px] font-bold text-gray-900 truncate">{notif.title}</h4>
-                    <p className="text-xs text-gray-450 mt-1 font-medium leading-relaxed">{notif.description}</p>
-                  </div>
-
-                  <div className="shrink-0 text-[10px] font-bold text-gray-400 self-start pt-1">
-                    {notif.time}
-                  </div>
-                </div>
-              ))
             )}
+
+            {readNotifs.map((notif) => (
+              <div
+                key={notif.id}
+                className="flex gap-4 p-5 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
+              >
+                <div className="shrink-0 mt-1 opacity-60">
+                  {getIcon(notif.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-4 mb-1">
+                    <h3 className="text-[14px] font-semibold text-gray-700 leading-snug">
+                      {notif.title}
+                    </h3>
+                    <span className="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap">
+                      {new Date(notif.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-gray-500 leading-relaxed">
+                    {notif.message}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

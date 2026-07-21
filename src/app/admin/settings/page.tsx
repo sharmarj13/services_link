@@ -32,21 +32,21 @@ export default function AdminSettingsPage() {
   const [toastMsg, setToastMsg] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_current_admin");
-      if (saved) {
-        try {
-          const user = JSON.parse(saved);
+    async function loadProfile() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          const user = await res.json();
           setCurrentAdmin(user);
-          if (user.name) {
-            const parts = user.name.split(" ");
-            setFirstName(parts[0] || "");
-            setLastName(parts.slice(1).join(" ") || "");
-          }
+          setFirstName(user.firstName || "");
+          setLastName(user.lastName || "");
           setEmail(user.email || "");
-        } catch {}
+        }
+      } catch (err) {
+        console.error("Failed to load session:", err);
       }
     }
+    loadProfile();
   }, []);
 
   const showToast = (msg: string) => {
@@ -54,52 +54,47 @@ export default function AdminSettingsPage() {
     setTimeout(() => setToastMsg(""), 3000);
   };
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentAdmin) return;
 
-    const newName = `${firstName.trim()} ${lastName.trim()}`.trim();
-    if (!newName || !email.trim()) {
-      alert("Name and email are required.");
+    if (!firstName.trim() || !email.trim()) {
+      alert("First name and email are required.");
       return;
     }
 
-    if (typeof window !== "undefined") {
-      // Update global database
-      let admins = [];
-      const saved = localStorage.getItem("servicelink_admins");
-      if (saved) {
-        try { admins = JSON.parse(saved); } catch {}
-      }
-      
-      const index = admins.findIndex((adm: any) => adm.id === currentAdmin.id);
-      if (index !== -1) {
-        admins[index] = {
-          ...admins[index],
-          name: newName,
-          email: email.trim(),
-        };
-        localStorage.setItem("servicelink_admins", JSON.stringify(admins));
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          firstName: firstName.trim(), 
+          lastName: lastName.trim(), 
+          email: email.trim() 
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.message || "Failed to update profile");
+        return;
       }
 
-      // Update current session
-      const updatedSession = {
-        ...currentAdmin,
-        name: newName,
-        email: email.trim()
-      };
-      localStorage.setItem("servicelink_current_admin", JSON.stringify(updatedSession));
-      setCurrentAdmin(updatedSession);
+      const updatedUser = await res.json();
+      setCurrentAdmin({ ...currentAdmin, ...updatedUser });
       showToast("Profile settings saved successfully!");
       
-      // Reload page to refresh layouts
+      // Reload page to refresh layouts if needed
       setTimeout(() => {
         window.location.reload();
       }, 1000);
+    } catch (err) {
+      console.error(err);
+      alert("Error updating profile.");
     }
   };
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentAdmin) return;
 
@@ -113,36 +108,29 @@ export default function AdminSettingsPage() {
       return;
     }
 
-    if (typeof window !== "undefined") {
-      let admins = [];
-      const saved = localStorage.getItem("servicelink_admins");
-      if (saved) {
-        try { admins = JSON.parse(saved); } catch {}
-      }
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          currentPassword: currentPwd, 
+          newPassword: newPwd 
+        }),
+      });
 
-      const match = admins.find((adm: any) => adm.id === currentAdmin.id);
-      const expectedPwd = (match && match.password) || "admin";
-
-      if (currentPwd !== expectedPwd) {
-        alert("The current password you entered is incorrect.");
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.message || "Failed to update password");
         return;
       }
-
-      const index = admins.findIndex((adm: any) => adm.id === currentAdmin.id);
-      if (index !== -1) {
-        admins[index].password = newPwd;
-        localStorage.setItem("servicelink_admins", JSON.stringify(admins));
-      }
-
-      // Update session
-      const updatedSession = { ...currentAdmin, password: newPwd };
-      localStorage.setItem("servicelink_current_admin", JSON.stringify(updatedSession));
-      setCurrentAdmin(updatedSession);
 
       setCurrentPwd("");
       setNewPwd("");
       setConfirmPwd("");
       showToast("Password updated successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Error changing password.");
     }
   };
 
