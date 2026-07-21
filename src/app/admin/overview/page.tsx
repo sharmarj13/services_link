@@ -283,7 +283,7 @@ export default function AdminOverviewPage() {
             <div>
               <h3 className="text-[16px] font-bold text-gray-900">Status Distribution</h3>
               <p className="text-[11px] text-gray-400 font-medium">Breakdown of requests by state</p>
-            </div>
+            </div> 
 
             {/* Custom Interactive Donut Chart */}
             <div className="relative flex items-center justify-center my-6 h-[150px] w-full">
