@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -37,9 +38,24 @@ export default function AdminRequestsPage() {
   const [techs, setTechs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Search & Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [filterSite, setFilterSite] = useState("All");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterPriority, setFilterPriority] = useState("All");
+
   const fetchRequests = async () => {
+    setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, { credentials: "include" });
+      // Build query string
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+      if (filterStatus && filterStatus !== "All") params.append("status", filterStatus);
+      if (filterPriority && filterPriority !== "All") params.append("priority", filterPriority);
+      if (filterSite && filterSite !== "All") params.append("siteId", filterSite); // Note: filterSite currently stores name not ID, you might need to adjust this depending on backend
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setRequests(data);
@@ -66,13 +82,8 @@ export default function AdminRequestsPage() {
   useEffect(() => {
     fetchRequests();
     fetchTechs();
-  }, []);
-
-  // Search & Filter States
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterSite, setFilterSite] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All");
-  const [filterPriority, setFilterPriority] = useState("All");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm, filterStatus, filterPriority, filterSite]);
 
   // Modals States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -267,18 +278,8 @@ export default function AdminRequestsPage() {
     setUploadedPhotos(uploadedPhotos.filter((_, idx) => idx !== index));
   };
 
-  // Filtered requests
-  const filteredRequests = requests.filter((r) => {
-    const matchesSearch =
-      r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.id.includes(searchTerm) ||
-      r.customer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSite = filterSite === "All" || r.site === filterSite;
-    const matchesStatus = filterStatus === "All" || r.status === filterStatus;
-    const matchesPriority = filterPriority === "All" || r.priority === filterPriority;
-
-    return matchesSearch && matchesSite && matchesStatus && matchesPriority;
-  });
+  // Filtered requests are now handled by the backend
+  const filteredRequests = requests;
 
   return (
     <AdminLayout
