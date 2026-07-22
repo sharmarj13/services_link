@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
       const meData = await meRes.json();
       const role = (meData.data?.user || meData.user)?.siteUser?.role || (meData.data?.user || meData.user)?.globalRole;
 
-      if (role !== "admin") {
+      if (role !== "admin" && role !== "super_admin") {
         // If they are not an admin, we must log them out immediately
         await fetch(`${API_BASE_URL}/api/auth/logout`, {
           method: "POST",

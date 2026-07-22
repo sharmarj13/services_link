@@ -70,7 +70,7 @@ export default function AdminLayout({
         
         // Ensure user is an admin
         const role = (data.data?.user || data.user)?.siteUser?.role || (data.data?.user || data.user)?.globalRole;
-        if (role !== "admin") {
+        if (role !== "admin" && role !== "super_admin") {
           // If logged in but not admin, kick to login (or respective dashboard)
           if (isMounted) router.push("/admin/login");
           return;

@@ -69,6 +69,36 @@ export default function AdministrationSettingsPage() {
 
   const [businesses, setBusinesses] = useState<BusinessAccount[]>([]);
   const [isLoadingSites, setIsLoadingSites] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [departments, setDepartments] = useState<any[]>([]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await apiFetch(`/api/admin/departments`);
+      if (res.ok) {
+        const data = await res.json();
+        setDepartments(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch departments:", err);
+    }
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const res = await apiFetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        const userData = data.data?.user || data.user;
+        setCurrentUser(userData);
+        if (!userData?.isSuperAdmin) {
+          setAdminRole("Technician");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchSites = async () => {
     try {
@@ -86,8 +116,10 @@ export default function AdministrationSettingsPage() {
   };
 
   useEffect(() => {
+    fetchCurrentUser();
     fetchUsers();
     fetchSites();
+    fetchDepartments();
   }, []);
 
   // Form states - Admin
@@ -96,7 +128,7 @@ export default function AdministrationSettingsPage() {
   const [adminRole, setAdminRole] = useState("Super Admin");
   const [adminPass, setAdminPass] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
-  const [adminDept, setAdminDept] = useState("Operations");
+  const [adminDept, setAdminDept] = useState("");
   const [adminSites, setAdminSites] = useState("All Sites");
 
   // Form states - Business
@@ -137,7 +169,7 @@ export default function AdministrationSettingsPage() {
         setAdminEmail("");
         setAdminPass("");
         setAdminPhone("");
-        setAdminDept("Operations");
+        setAdminDept("");
         setAdminRole("Super Admin");
         setAdminSites("All Sites");
         showToast("User account created successfully!");
@@ -347,14 +379,20 @@ export default function AdministrationSettingsPage() {
                   <div className="space-y-1">
                     <label className="block text-[11px] font-bold text-gray-700">Department</label>
                     <select
-                      value={adminDept}
+                      value={departments.length === 0 ? "" : adminDept}
                       onChange={(e) => setAdminDept(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-850 outline-none focus:border-[#D12031]"
                     >
-                      <option>Operations</option>
-                      <option>Executive Office</option>
-                      <option>IT & Security</option>
-                      <option>Customer Support</option>
+                      {departments.length === 0 ? (
+                        <option value="" disabled>-- No departments available --</option>
+                      ) : (
+                        <>
+                          <option value="" disabled>-- Select Department --</option>
+                          {departments.map(dept => (
+                            <option key={dept.id} value={dept.name}>{dept.name}</option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -367,8 +405,9 @@ export default function AdministrationSettingsPage() {
                       onChange={(e) => setAdminRole(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-850 outline-none focus:border-[#D12031]"
                     >
-                      <option>Super Admin</option>
-                      <option>Admin</option>
+                      {currentUser?.isSuperAdmin && (
+                        <option>Admin</option>
+                      )}
                       <option>Technician</option>
                       <option>Customer</option>
                     </select>
@@ -376,7 +415,7 @@ export default function AdministrationSettingsPage() {
                   <div className="space-y-1">
                     <label className="block text-[11px] font-bold text-gray-700">Site Access Scope</label>
                     <select
-                      value={adminSites}
+                      value={businesses.length === 0 ? "" : adminSites}
                       onChange={(e) => setAdminSites(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-855 outline-none focus:border-[#D12031]"
                     >
@@ -428,7 +467,7 @@ export default function AdministrationSettingsPage() {
                 <h3 className="text-sm font-bold text-gray-900">Current Platform Users</h3>
               </div>
 
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-2">
                 {admins.map((adm) => (
                   <div key={adm.id} className="py-3.5 flex items-start justify-between text-xs font-semibold">
                     <div className="space-y-0.5">
@@ -447,14 +486,16 @@ export default function AdministrationSettingsPage() {
                       <span className="bg-red-50 text-[#D12031] border border-red-100 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                         {adm.role}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => confirmDeleteAdmin(adm)}
-                        className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
-                        title="Revoke Access"
-                      >
-                        <FiTrash2 size={14} />
-                      </button>
+                      {(!['admin', 'super_admin'].includes(adm.role?.toLowerCase() || '') || currentUser?.isSuperAdmin) && (
+                        <button
+                          type="button"
+                          onClick={() => confirmDeleteAdmin(adm)}
+                          className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
+                          title="Revoke Access"
+                        >
+                          <FiTrash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

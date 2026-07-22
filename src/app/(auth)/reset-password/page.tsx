@@ -7,7 +7,9 @@ import { FiLock, FiCheckCircle, FiArrowLeft, FiKey } from "react-icons/fi";
 import { AuthLayout, Logo, InputField, PrimaryButton } from "@/components/AuthUI";
 import { API_BASE_URL } from "@/config";
 
-export default function ResetPasswordPage() {
+import { Suspense } from "react";
+
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialEmail = searchParams.get("email") || "";
@@ -164,5 +166,13 @@ export default function ResetPasswordPage() {
         </Link>
       </div>
     </AuthLayout>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-50"><div className="w-8 h-8 border-4 border-[#D12031] border-t-transparent rounded-full animate-spin"></div></div>}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
