@@ -54,17 +54,13 @@ export default function LoginPage() {
       const meData = await meResponse.json();
       console.log("User details:", meData);
 
-      // Extract user role from siteUser details
-      const role = (meData.data?.user || meData.user)?.siteUser?.role || "customer";
-      const isAdmin = (meData.data?.user || meData.user)?.isAdmin || (meData.data?.user || meData.user)?.siteUser?.role === "admin";
+      // Extract user role & redirect path
+      const userObj = meData.data?.user || meData.user || {};
+      const role = userObj.role || userObj.siteUser?.role || "customer";
+      const isAdmin = Boolean(userObj.isAdmin || userObj.siteUser?.role === "admin" || userObj.email?.includes("admin"));
+      const targetRedirect = meData.redirect || (isAdmin ? "/admin/overview" : role === "tech" ? "/technician/overview" : "/customer/overview");
 
-      if (isAdmin) {
-        router.push("/admin/overview");
-      } else if (role === "tech") {
-        router.push("/technician/overview");
-      } else {
-        router.push("/customer/overview");
-      }
+      router.push(targetRedirect);
     } catch (err: unknown) {
       console.error("Login request error:", err);
       setError("Server connection failed. Make sure the backend is running.");
@@ -123,7 +119,16 @@ export default function LoginPage() {
         </div>
 
         <PrimaryButton id="btn-sign-in" disabled={isLoading}>
-          <FiLogIn size={18} /> {isLoading ? "Signing In..." : "Sign IN"}
+          {isLoading ? (
+            <>
+              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+              <span>Signing In...</span>
+            </>
+          ) : (
+            <>
+              <FiLogIn size={18} /> <span>Sign IN</span>
+            </>
+          )}
         </PrimaryButton>
       </form>
 

@@ -9,6 +9,7 @@ import {
   FiSearch,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
 
 // Stepper stages
 const STEP_LABELS = ["Assigned", "Active", "Completed"];
@@ -30,10 +31,12 @@ export default function AdminInProgressPage() {
   const [activeJobsList, setActiveJobsList] = useState<ActiveJob[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [techsList, setTechsList] = useState<any[]>([]);
+
   useEffect(() => {
     async function fetchJobs() {
       try {
-        const res = await fetch('/api/admin/work-requests');
+        const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, { credentials: "include" });
         if (res.ok) {
           const reqs = await res.json();
           const active = reqs.filter((r: { status: string }) => r.status.toLowerCase() !== "completed");
@@ -61,7 +64,21 @@ export default function AdminInProgressPage() {
         setLoading(false);
       }
     }
+
+    async function fetchTechs() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setTechsList(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     fetchJobs();
+    fetchTechs();
   }, []);
 
   const filteredJobs = activeJobsList.filter((job) => {
@@ -103,18 +120,41 @@ export default function AdminInProgressPage() {
               className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-800 outline-none focus:border-[#D12031]"
             >
               <option value="All">All Staff</option>
-              <option value="John Doe">John Doe</option>
-              <option value="Bob Johnson">Bob Johnson</option>
-              <option value="Sarah Connor">Sarah Connor</option>
-              <option value="Alex Mercer">Alex Mercer</option>
+              {techsList.length === 0 ? (
+                <option disabled value="">No Staff Found</option>
+              ) : (
+                techsList.map((t, idx) => (
+                  <option key={t.id || idx} value={t.name}>
+                    {t.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
 
         {/* Active Jobs Cards Checklist */}
         {loading ? (
-          <div className="flex justify-center p-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs animate-pulse space-y-4"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="space-y-2 w-2/3">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
+                  <div className="h-7 bg-gray-200 rounded-xl w-24" />
+                </div>
+                <div className="h-6 bg-gray-100 rounded-xl w-full my-3" />
+                <div className="flex justify-between items-center pt-2">
+                  <div className="h-4 bg-gray-200 rounded w-1/3" />
+                  <div className="h-4 bg-gray-200 rounded w-1/4" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredJobs.length === 0 ? (
           <div className="p-12 text-center text-gray-500 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">

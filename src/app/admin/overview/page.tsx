@@ -16,17 +16,53 @@ import {
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
 
+function formatTimeAgo(dateString?: string) {
+  if (!dateString) return "Recently";
+  const now = new Date();
+  const past = new Date(dateString);
+  const diffInMs = now.getTime() - past.getTime();
+  if (isNaN(diffInMs)) return "Recently";
+  const diffInMins = Math.floor(diffInMs / (1000 * 60));
+  if (diffInMins < 1) return "Just now";
+  if (diffInMins < 60) return `${diffInMins} mins ago`;
+  const diffInHours = Math.floor(diffInMins / 60);
+  if (diffInHours < 24) return `${diffInHours} hrs ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+}
+
+function getCurrentRangeText(scope: string) {
+  const now = new Date();
+  if (scope === "All Time") return "Lifetime Activity";
+  if (scope === "This Month") {
+    return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
+  if (scope === "This Week") {
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    
+    const startStr = startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const endStr = endOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `Current Week (${startStr} - ${endStr})`;
+  }
+  return scope;
+}
+
 export default function AdminOverviewPage() {
   const [timeScope, setTimeScope] = useState("This Month");
   const [hoveredPie, setHoveredPie] = useState<number | null>(null);
   const [hoveredLinePoint, setHoveredLinePoint] = useState<number | null>(null);
 
   const [statsData, setStatsData] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      setLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats`, {
+        const res = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats?scope=${encodeURIComponent(timeScope)}`, {
           credentials: "include",
         });
         if (res.ok) {
@@ -35,6 +71,8 @@ export default function AdminOverviewPage() {
         }
       } catch (err) {
         console.error("Failed to fetch dashboard stats:", err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchStats();
@@ -110,7 +148,7 @@ export default function AdminOverviewPage() {
             <div>
               <div className="text-xs text-gray-500 font-semibold">Current Overview Range</div>
               <div className="text-sm font-bold text-gray-800 flex items-center gap-1.5 mt-0.5">
-                {timeScope === "All Time" ? "Lifetime Activity" : timeScope === "This Month" ? "June 2026" : "Current Week (June 15 - 21)"}
+                {getCurrentRangeText(timeScope)}
               </div>
             </div>
           </div>
@@ -139,6 +177,7 @@ export default function AdminOverviewPage() {
             <FiChevronDown size={14} className="text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
+        </div>
 
         {/* 📊 Stat Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -147,17 +186,21 @@ export default function AdminOverviewPage() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[13px] font-bold text-gray-500">Total Work Requests</span>
-                <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
-                  {stats.total}
-                </div>
+                {loading ? (
+                  <div className="h-9 w-16 bg-gray-200 rounded-lg animate-pulse mt-2" />
+                ) : (
+                  <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
+                    {stats.total}
+                  </div>
+                )}
               </div>
               <span className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                 <FiClipboard size={18} />
               </span>
             </div>
-            <div className="flex items-center gap-1 mt-4 text-[11px] text-emerald-600 font-bold">
-              <FiTrendingUp />
-              <span>+12.4% vs last period</span>
+            <div className="flex items-center gap-1 mt-4 text-[11px] text-gray-500 font-semibold">
+              <FiTrendingUp className="text-blue-600" />
+              <span>Real-time overall requests</span>
             </div>
           </div>
 
@@ -166,17 +209,21 @@ export default function AdminOverviewPage() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[13px] font-bold text-gray-500">Active</span>
-                <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
-                  {stats.active}
-                </div>
+                {loading ? (
+                  <div className="h-9 w-16 bg-gray-200 rounded-lg animate-pulse mt-2" />
+                ) : (
+                  <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
+                    {stats.active}
+                  </div>
+                )}
               </div>
               <span className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-[#D12031] shrink-0">
                 <FiClock size={18} />
               </span>
             </div>
-            <div className="flex items-center gap-1 mt-4 text-[11px] text-emerald-600 font-bold">
-              <FiTrendingUp />
-              <span>+4.2% vs last period</span>
+            <div className="flex items-center gap-1 mt-4 text-[11px] text-gray-500 font-semibold">
+              <FiActivity className="text-[#D12031]" />
+              <span>Current active operations</span>
             </div>
           </div>
 
@@ -185,9 +232,13 @@ export default function AdminOverviewPage() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[13px] font-bold text-gray-500">Technicians</span>
-                <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
-                  {stats.techs}
-                </div>
+                {loading ? (
+                  <div className="h-9 w-16 bg-gray-200 rounded-lg animate-pulse mt-2" />
+                ) : (
+                  <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
+                    {stats.techs}
+                  </div>
+                )}
               </div>
               <span className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
                 <FiUsers size={18} />
@@ -204,9 +255,13 @@ export default function AdminOverviewPage() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[13px] font-bold text-gray-500">Pending Notice Reviews</span>
-                <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
-                  {String(stats.pending).padStart(2, "0")}
-                </div>
+                {loading ? (
+                  <div className="h-9 w-16 bg-gray-200 rounded-lg animate-pulse mt-2" />
+                ) : (
+                  <div className="text-[32px] font-black text-gray-900 leading-tight mt-2">
+                    {String(stats.pending).padStart(2, "0")}
+                  </div>
+                )}
               </div>
               <span className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
                 <FiAlertCircle size={18} />
@@ -274,14 +329,26 @@ export default function AdminOverviewPage() {
                   strokeLinejoin="round"
                 />
 
-                {/* Data Points & Interactive hover zones */}
+                {/* Data Points & Value Labels (Always visible without hover) */}
                 {lineData.map((d: any, i: number) => (
                   <g key={i} className="cursor-pointer" onMouseEnter={() => setHoveredLinePoint(i)} onMouseLeave={() => setHoveredLinePoint(null)}>
+                    {/* Always visible count label above data point */}
+                    <text
+                      x={d.x}
+                      y={d.y - 9}
+                      fill="#D12031"
+                      fontSize="9.5"
+                      fontWeight="800"
+                      textAnchor="middle"
+                    >
+                      {d.val}
+                    </text>
+
                     {/* Pulsing Outer Circle on Hover */}
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={hoveredLinePoint === i ? 10 : 0}
+                      r={hoveredLinePoint === i ? 9 : 0}
                       fill="#D12031"
                       opacity="0.25"
                       className="transition-all duration-200"
@@ -290,7 +357,7 @@ export default function AdminOverviewPage() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={hoveredLinePoint === i ? 5 : 4}
+                      r={hoveredLinePoint === i ? 4.5 : 3.5}
                       fill="#D12031"
                       stroke="#fff"
                       strokeWidth={hoveredLinePoint === i ? 2 : 1.5}
@@ -399,27 +466,39 @@ export default function AdminOverviewPage() {
             </div>
 
             <div className="flex-1 flex flex-col gap-4">
-              {barData.map((b: any, idx: number) => {
-                const percent = (b.val / maxBarVal) * 100;
-                return (
-                  <div
-                    key={idx}
-                    className="space-y-1.5 cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-gray-700">
-                      <span>{b.label}</span>
-                      <span className="text-gray-900 group-hover:text-[#D12031] transition-colors">{b.val} Requests</span>
+              {loading ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <div key={idx} className="space-y-2 animate-pulse">
+                    <div className="flex justify-between">
+                      <div className="h-3 bg-gray-200 rounded w-24" />
+                      <div className="h-3 bg-gray-200 rounded w-16" />
                     </div>
-
-                    <div className="h-4.5 bg-gray-100 rounded-lg overflow-hidden border border-[#D12031]/20">
-                      <div
-                        className="h-full bg-[#D12031] rounded-lg transition-all duration-500 ease-out origin-left group-hover:bg-[#a81828]"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
+                    <div className="h-4.5 bg-gray-200 rounded-lg w-full" />
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                barData.map((b: any, idx: number) => {
+                  const percent = (b.val / maxBarVal) * 100;
+                  return (
+                    <div
+                      key={idx}
+                      className="space-y-1.5 cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-gray-700">
+                        <span>{b.label}</span>
+                        <span className="text-gray-900 group-hover:text-[#D12031] transition-colors">{b.val} Requests</span>
+                      </div>
+
+                      <div className="h-4.5 bg-gray-100 rounded-lg overflow-hidden border border-[#D12031]/20">
+                        <div
+                          className="h-full bg-[#D12031] rounded-lg transition-all duration-500 ease-out origin-left group-hover:bg-[#a81828]"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -436,29 +515,44 @@ export default function AdminOverviewPage() {
             </div>
 
             <div className="divide-y divide-gray-100 flex-1 overflow-y-auto max-h-[300px]">
-              {[
-                { text: "Technician John Doe started HVAC Compressor Maintenance (#99402)", time: "10 mins ago", role: "tech" },
-                { text: "Customer Alice Smith created request Routine Safety Inspection (#99408)", time: "2 hrs ago", role: "cust" },
-                { text: "Technician Bob Johnson marked Laundry Duct Cleaning as completed", time: "4 hrs ago", role: "tech" },
-                { text: "New Business account 'CleanCorp' added by Super Admin", time: "1 day ago", role: "admin" },
-                { text: "Notice 'Safety violation warning' submitted by Admin for review", time: "1 day ago", role: "admin" },
-              ].map((item, idx) => (
-                <div key={idx} className="p-4.5 hover:bg-gray-50/50 transition-colors flex gap-3 text-xs font-semibold text-gray-700">
-                  <span className="mt-0.5 shrink-0">
-                    {item.role === "tech" ? (
-                      <span className="w-6 h-6 rounded-full bg-red-50 text-[#D12031] flex items-center justify-center font-black">T</span>
-                    ) : item.role === "cust" ? (
-                      <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black">C</span>
-                    ) : (
-                      <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-black">A</span>
-                    )}
-                  </span>
-                  <div className="space-y-1">
-                    <p className="text-gray-800 font-medium leading-relaxed">{item.text}</p>
-                    <span className="text-[10px] text-gray-400 font-bold block">{item.time}</span>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="p-4.5 flex gap-3 animate-pulse">
+                    <div className="w-6 h-6 rounded-full bg-gray-200 shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3.5 bg-gray-200 rounded w-3/4" />
+                      <div className="h-2.5 bg-gray-200 rounded w-1/4" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                ((statsData?.recentActivities && statsData.recentActivities.length > 0) 
+                  ? statsData.recentActivities.map((act: any) => ({
+                      text: act.text,
+                      time: formatTimeAgo(act.createdAt),
+                      role: act.role || "admin"
+                    }))
+                  : [
+                      { text: "No recent activity log recorded yet", time: "Just now", role: "admin" }
+                    ]
+                ).map((item: any, idx: number) => (
+                  <div key={idx} className="p-4.5 hover:bg-gray-50/50 transition-colors flex gap-3 text-xs font-semibold text-gray-700">
+                    <span className="mt-0.5 shrink-0">
+                      {item.role === "tech" ? (
+                        <span className="w-6 h-6 rounded-full bg-red-50 text-[#D12031] flex items-center justify-center font-black">T</span>
+                      ) : item.role === "cust" ? (
+                        <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black">C</span>
+                      ) : (
+                        <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-black">A</span>
+                      )}
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-gray-800 font-medium leading-relaxed">{item.text}</p>
+                      <span className="text-[10px] text-gray-400 font-bold block">{item.time}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

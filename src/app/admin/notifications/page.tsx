@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { FiTool, FiCheck, FiAlertCircle, FiBell } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface NotificationItem {
   id: string;
@@ -20,7 +21,7 @@ export default function AdminNotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch("/api/admin/notifications");
+      const res = await apiFetch("/api/admin/notifications");
       if (res.ok) {
         const data: NotificationItem[] = await res.json();
         setUnreadNotifs(data.filter((n) => !n.isRead));
@@ -39,7 +40,7 @@ export default function AdminNotificationsPage() {
 
   const markAsRead = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/notifications/${id}/read`, { method: "PUT" });
+      const res = await apiFetch(`/api/admin/notifications/${id}/read`, { method: "PUT" });
       if (res.ok) {
         const notif = unreadNotifs.find((n) => n.id === id);
         if (notif) {
@@ -54,7 +55,7 @@ export default function AdminNotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
-      const res = await fetch("/api/admin/notifications/mark-all-read", { method: "POST" });
+      const res = await apiFetch("/api/admin/notifications/mark-all-read", { method: "POST" });
       if (res.ok) {
         setReadNotifs((prev) => [
           ...unreadNotifs.map(n => ({ ...n, isRead: true })), 
@@ -121,8 +122,16 @@ export default function AdminNotificationsPage() {
             )}
             
             {loading && (
-              <div className="p-8 text-center flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D12031]"></div>
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, idx) => (
+                  <div key={idx} className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm animate-pulse flex gap-4">
+                    <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-1/3" />
+                      <div className="h-3 bg-gray-200 rounded w-3/4" />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { FiEdit, FiMapPin, FiCalendar, FiUser, FiInfo, FiFileText, FiAlertCircle, FiMessageSquare, FiCpu, FiCheckCircle, FiPaperclip, FiBriefcase, FiX, FiCheck, FiRotateCcw, FiTrash2, FiClock, FiArrowLeft, FiEdit2, FiPhoneCall, FiMail, FiPlus } from "react-icons/fi";
 import { apiFetch } from "@/lib/apiFetch";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
 
 interface NoticeDetail {
   id: string;
@@ -162,44 +163,32 @@ interface JobDetail {
 }
 
 const DEFAULT_JOB_DETAIL: JobDetail = {
-  id: "99402",
-  title: "HVAC Compressor Maintenance",
+  id: "N/A",
+  title: "Work Request",
   status: "Assigned",
-  customer: "Maurice Maldonado",
-  siteLocation: "Warehouse D, Bay 14",
-  department: "Maintenance & Ops",
-  scheduleDate: "Oct 24, 08:00 AM",
-  poNumber: "#PO-882910",
-  assetId: "HVAC-UNIT-04",
-  scopeOfWork:
-    "Diagnose the network issue, inspect switches and cabling, identify the root cause, and restore connectivity. Test the network after repairs and provide a completion report.",
-  contactName: "James Brennan",
-  contactRole: "Facility Manager",
-  contactInitials: "JB",
-  attachments: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
-  workType: "Routine",
-  workType2: "Recyclable",
-  priority: "Medium",
-  duration: "30 Minute",
-  unit: "Select unit",
-  quantity: "0.00",
-  category: "Cleaning",
-  ppeUsed: ["Safety Glasses", "Face Respirator", "Boots"],
-  additionalNotes: "HVAC Compressor Maintenance HVAC Compressor Maintenance",
-  detailedDescription:
-    "HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance HVAC Compressor Maintenance",
-  beforePhotos: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
-  afterPhotos: [
-    "/images/onbording-background.png",
-    "/images/onbording-background.png",
-  ],
+  customer: "N/A",
+  siteLocation: "N/A",
+  department: "N/A",
+  scheduleDate: "N/A",
+  poNumber: "N/A",
+  assetId: "N/A",
+  scopeOfWork: "N/A",
+  contactName: "N/A",
+  contactRole: "N/A",
+  contactInitials: "NA",
+  attachments: [],
+  workType: "N/A",
+  workType2: "N/A",
+  priority: "Low",
+  duration: "N/A",
+  unit: "N/A",
+  quantity: "0",
+  category: "N/A",
+  ppeUsed: [],
+  additionalNotes: "N/A",
+  detailedDescription: "N/A",
+  beforePhotos: [],
+  afterPhotos: [],
 };
 
 /* ─── Status badge config ─── */
@@ -245,46 +234,90 @@ export default function AdminRequestDetailPage() {
   const [job, setJob] = useState<JobDetail>(DEFAULT_JOB_DETAIL);
   const [notice, setNotice] = useState<NoticeDetail | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [techsList, setTechsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTechs = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setTechsList(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch techs:", err);
+      }
+    };
+    fetchTechs();
+  }, []);
 
   useEffect(() => {
     if (params?.id) {
       const id = params.id as string;
+      setLoading(true);
       
-      // Look up notice for this jobId (mock for now until notices are fully migrated)
+      // Look up notice for this jobId
       const foundNotice = MOCK_NOTICES.find((n) => n.jobId === id);
       setNotice(foundNotice || null);
 
       const fetchJob = async () => {
         try {
-          const res = await fetch(`/api/admin/work-requests/${id}`);
+          const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
+            credentials: "include",
+          });
           if (res.ok) {
             const found = await res.json();
-            let s = found.status.toLowerCase();
+            let s = found.status ? found.status.toLowerCase() : "assigned";
             if (s === "in_progress" || s === "in-progress") s = "Active";
             else if (s === "pending") s = "Assigned";
             else s = found.status;
             
+            const cName = found.contactName || found.customer || "N/A";
+            const cRole = found.contactRole || (found.customer ? "Customer" : "N/A");
+            const initials = cName !== "N/A"
+              ? cName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+              : "NA";
+
+            const siteLoc = [found.site, found.location].filter(Boolean).join(", ") || "N/A";
+
             setJob({
-              ...DEFAULT_JOB_DETAIL,
-              id: found.id,
-              title: found.title,
+              id: found.id || "N/A",
+              title: found.title || "N/A",
               status: s,
-              customer: found.customer,
-              siteLocation: `${found.site}, ${found.location || "Facility Area 1A"}`,
-              department: found.department !== "None" ? found.department : "Maintenance & Ops",
-              detailedDescription: found.description,
-              scopeOfWork: found.scopeOfWork || DEFAULT_JOB_DETAIL.scopeOfWork,
+              customer: found.customer || "N/A",
+              siteLocation: siteLoc,
+              department: found.department && found.department !== "None" ? found.department : "N/A",
+              detailedDescription: found.description || "N/A",
+              scopeOfWork: found.scopeOfWork || found.description || "N/A",
               assignedTechnician: found.assignedTechnician || "Unassigned",
-              category: found.category || DEFAULT_JOB_DETAIL.category,
-              priority: found.priority || DEFAULT_JOB_DETAIL.priority,
+              category: found.category || "N/A",
+              priority: found.priority || "Low",
+              scheduleDate: found.createdAt ? new Date(found.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A",
+              poNumber: found.poNumber ? `#${found.poNumber}` : "N/A",
+              assetId: found.assetId || "N/A",
+              contactName: cName,
+              contactRole: cRole,
+              contactInitials: initials,
+              attachments: found.attachments || [],
+              workType: found.workType || "N/A",
+              workType2: found.workType2 || "N/A",
+              duration: found.duration || "N/A",
+              unit: found.unit || "N/A",
+              quantity: found.quantity ? String(found.quantity) : "0",
+              ppeUsed: found.ppeUsed || [],
+              additionalNotes: found.additionalNotes || "N/A",
+              beforePhotos: found.beforePhotos || [],
+              afterPhotos: found.afterPhotos || [],
             });
           } else {
-            // Fallback if not found
             setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Assigned", assignedTechnician: "Unassigned" });
           }
         } catch (err) {
           console.error("Failed to fetch job detail:", err);
           setJob({ ...DEFAULT_JOB_DETAIL, id, status: "Assigned", assignedTechnician: "Unassigned" });
+        } finally {
+          setLoading(false);
         }
       };
       fetchJob();
@@ -309,7 +342,36 @@ export default function AdminRequestDetailPage() {
           Back to Requests list
         </button>
 
-        {isAssigned ? (
+        {loading ? (
+          /* Page Skeleton Loader */
+          <div className="flex flex-col lg:flex-row gap-6 animate-pulse">
+            <div className="flex-1 space-y-5">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 h-64 space-y-4">
+                <div className="h-6 bg-gray-200 rounded w-1/3" />
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 h-40 space-y-3">
+                <div className="h-5 bg-gray-200 rounded w-1/4" />
+                <div className="h-4 bg-gray-200 rounded w-3/4" />
+              </div>
+            </div>
+            <div className="w-full lg:w-[280px] space-y-5 shrink-0">
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 h-44 space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-1/2" />
+                <div className="h-10 bg-gray-200 rounded-xl w-full" />
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 h-44 space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-1/2" />
+                <div className="h-10 bg-gray-200 rounded-xl w-full" />
+              </div>
+            </div>
+          </div>
+        ) : isAssigned ? (
           /* ══════════════ ASSIGNED LAYOUT ══════════════ */
           <div className="flex flex-col lg:flex-row gap-6">
             {/* ── Left Column ── */}
@@ -440,10 +502,15 @@ export default function AdminRequestDetailPage() {
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-955 outline-none focus:border-[#D12031]"
                     >
                       <option value="Unassigned">Select Technician...</option>
-                      <option value="John Doe">John Doe</option>
-                      <option value="Bob Johnson">Bob Johnson</option>
-                      <option value="Sarah Connor">Sarah Connor</option>
-                      <option value="Alex Mercer">Alex Mercer</option>
+                      {techsList.length === 0 ? (
+                        <option disabled value="">No Technicians Available</option>
+                      ) : (
+                        techsList.map((t, idx) => (
+                          <option key={t.id || idx} value={t.id || t.name}>
+                            {t.name}
+                          </option>
+                        ))
+                      )}
                     </select>
                     <button
                       onClick={() => {
@@ -506,9 +573,12 @@ export default function AdminRequestDetailPage() {
                     <FiPhoneCall size={15} />
                     Call
                   </button>
-                  <button className="w-full py-3 border-2 border-[#D12031] text-[#D12031] rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-red-50 transition-colors cursor-pointer bg-white">
-                    <FiMail size={15} />
-                    Email Contact
+                  <button
+                    onClick={() => router.push("/admin/messages")}
+                    className="w-full py-3 border-2 border-[#D12031] text-[#D12031] rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-red-50 transition-colors cursor-pointer bg-white"
+                  >
+                    <FiMessageSquare size={15} />
+                    Message
                   </button>
                 </div>
               </div>
@@ -520,36 +590,66 @@ export default function AdminRequestDetailPage() {
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Add Photo Button */}
-                  <button className="h-[88px] rounded-xl border-2 border-dashed border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-50 transition-colors cursor-pointer bg-white gap-1">
+                  <label className="h-[88px] rounded-xl border-2 border-dashed border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-50 transition-colors cursor-pointer bg-white gap-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          setJob((prev) => ({
+                            ...prev,
+                            attachments: [...prev.attachments, url],
+                          }));
+                        }
+                      }}
+                    />
                     <div className="w-7 h-7 rounded-full bg-[#D12031] flex items-center justify-center">
                       <FiPlus size={16} className="text-white" />
                     </div>
                     <span className="text-[11px] font-semibold">Add Photo</span>
-                  </button>
+                  </label>
+
                   {/* Attachment thumbnails */}
-                  {job.attachments.map((src, i) => (
-                    <div
-                      key={i}
-                      className="relative h-[88px] rounded-xl overflow-hidden shadow-sm group"
-                    >
-                      <Image
-                        src={src}
-                        alt={`Attachment ${i + 1}`}
-                        fill
-                        className="object-cover"
-                      />
-                      {/* Delete icon */}
-                      <button className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#D12031] rounded-full flex items-center justify-center opacity-90 hover:opacity-100 cursor-pointer border-none">
-                        <FiTrash2 size={10} className="text-white" />
-                      </button>
-                      {/* Filename */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/55 py-1 px-1.5">
-                        <p className="text-[9px] text-white truncate text-center font-medium">
-                          Warehouse_Map.png
-                        </p>
+                  {job.attachments.map((src, i) => {
+                    const fileName = src.startsWith("blob:") 
+                      ? `Attachment_${i + 1}.png` 
+                      : (src.split("/").pop()?.split("?")[0] || `Attachment_${i + 1}.png`);
+
+                    return (
+                      <div
+                        key={i}
+                        className="relative h-[88px] rounded-xl overflow-hidden shadow-sm group"
+                      >
+                        <Image
+                          src={src}
+                          alt={`Attachment ${i + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                        {/* Delete icon */}
+                        <button
+                          onClick={() => {
+                            setJob((prev) => ({
+                              ...prev,
+                              attachments: prev.attachments.filter((_, idx) => idx !== i),
+                            }));
+                          }}
+                          className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#D12031] rounded-full flex items-center justify-center opacity-90 hover:opacity-100 cursor-pointer border-none z-10"
+                        >
+                          <FiTrash2 size={10} className="text-white" />
+                        </button>
+                        {/* Filename */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/55 py-1 px-1.5">
+                          <p className="text-[9px] text-white truncate text-center font-medium">
+                            {fileName}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -679,19 +779,23 @@ export default function AdminRequestDetailPage() {
                     <p className="text-[13px] font-bold text-gray-900 mb-3">
                       PPE Used
                     </p>
-                    <div className="border border-red-250 rounded-xl p-4 inline-block min-w-[220px]">
-                      <ul className="space-y-2.5">
-                        {job.ppeUsed?.map((item, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-center gap-3 text-[13px] text-gray-600 font-medium"
-                          >
-                            <span className="w-2 h-2 rounded-full bg-[#D12031] shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    {job.ppeUsed && job.ppeUsed.length > 0 ? (
+                      <div className="border border-red-250 rounded-xl p-4 inline-block min-w-[220px]">
+                        <ul className="space-y-2.5">
+                          {job.ppeUsed.map((item, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-center gap-3 text-[13px] text-gray-600 font-medium"
+                            >
+                              <span className="w-2 h-2 rounded-full bg-[#D12031] shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-[13px] text-gray-550 font-medium">N/A</p>
+                    )}
                   </div>
 
                   {/* Additional Notes */}
@@ -835,38 +939,38 @@ export default function AdminRequestDetailPage() {
               )}
             </div>
 
-            {/* ── Right Column – Photos ── */}
-            <div className="w-full lg:w-[270px] shrink-0 flex flex-col gap-5">
+            {/* ── Right Column ── */}
+            <div className="w-full lg:w-[280px] flex flex-col gap-5 shrink-0">
               {/* Before Photos */}
               <div className="bg-white rounded-2xl border border-[#e0e0e0] shadow-sm p-5">
                 <h3 className="text-[14px] font-bold text-gray-900 mb-4">
                   Before Photos
                 </h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {job.beforePhotos?.map((src, i) => (
-                    <div
-                      key={i}
-                      className="relative h-[66px] rounded-lg overflow-hidden shadow-sm"
-                    >
-                      <Image
-                        src={src}
-                        alt="Before"
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/35" />
-                      <div className="absolute bottom-1 left-1 right-1 text-[7px] text-white leading-tight font-medium">
-                        Before
-                        <br />
-                        Feb week 2, 2023
+                {job.beforePhotos && job.beforePhotos.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {job.beforePhotos.map((src, i) => (
+                      <div
+                        key={i}
+                        className="relative h-[66px] rounded-lg overflow-hidden shadow-sm"
+                      >
+                        <Image
+                          src={src}
+                          alt="Before"
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/35" />
+                        <div className="absolute bottom-1 left-1 right-1 text-[7px] text-white leading-tight font-medium">
+                          Before
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  <button className="h-[66px] rounded-lg bg-red-50 border border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors cursor-pointer gap-0.5">
-                    <FiPlus size={14} strokeWidth={2.5} />
-                    <span className="text-[9px] font-bold">View All</span>
-                  </button>
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center">
+                    <p className="text-xs text-gray-400 font-semibold">No before photos</p>
+                  </div>
+                )}
               </div>
 
               {/* After Photos */}
@@ -874,31 +978,31 @@ export default function AdminRequestDetailPage() {
                 <h3 className="text-[14px] font-bold text-gray-900 mb-4">
                   After Photos
                 </h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {job.afterPhotos?.map((src, i) => (
-                    <div
-                      key={i}
-                      className="relative h-[66px] rounded-lg overflow-hidden shadow-sm"
-                    >
-                      <Image
-                        src={src}
-                        alt="After"
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/35" />
-                      <div className="absolute bottom-1 left-1 right-1 text-[7px] text-white leading-tight font-medium">
-                        After
-                        <br />
-                        March week 2, 2023
+                {job.afterPhotos && job.afterPhotos.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {job.afterPhotos.map((src, i) => (
+                      <div
+                        key={i}
+                        className="relative h-[66px] rounded-lg overflow-hidden shadow-sm"
+                      >
+                        <Image
+                          src={src}
+                          alt="After"
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/35" />
+                        <div className="absolute bottom-1 left-1 right-1 text-[7px] text-white leading-tight font-medium">
+                          After
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  <button className="h-[66px] rounded-lg bg-red-50 border border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors cursor-pointer gap-0.5">
-                    <FiPlus size={14} strokeWidth={2.5} />
-                    <span className="text-[9px] font-bold">View All</span>
-                  </button>
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center">
+                    <p className="text-xs text-gray-400 font-semibold">No after photos</p>
+                  </div>
+                )}
               </div>
 
               {/* Status Progress Timeline */}

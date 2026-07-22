@@ -244,7 +244,16 @@ export default function SignupPage() {
 
         <div className="mt-6">
           <PrimaryButton id="btn-sign-up" disabled={isLoading || sitesLoading}>
-            <FiUserPlus size={18} /> {isLoading ? "Signing Up..." : "Sign UP"}
+            {isLoading ? (
+              <>
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                <span>Signing Up...</span>
+              </>
+            ) : (
+              <>
+                <FiUserPlus size={18} /> <span>Sign UP</span>
+              </>
+            )}
           </PrimaryButton>
         </div>
       </form>

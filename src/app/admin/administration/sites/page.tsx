@@ -22,13 +22,7 @@ interface SiteItem {
   department: string;
 }
 
-const DEFAULT_SITES: SiteItem[] = [
-  { id: "1", name: "Site A", address: "1201 Cardinal Blvd, City Center", technician: "Karl Smith", user: "Maurice Maldonado", status: "Operational", department: "Maintenance & Ops" },
-  { id: "2", name: "Site B", address: "845 Commerce Rd, Industrial Area", technician: "Sarah Connor", user: "John Doe", status: "Operational", department: "Safety & Compliance" },
-  { id: "3", name: "Site C", address: "302 Industrial Pkwy, West Zone", technician: "Bruce Banner", user: "Jane Foster", status: "Maintenance", department: "Quality Assurance" },
-  { id: "4", name: "Site D", address: "15 Logistics Dr, Logistics Park", technician: "Tony Stark", user: "Pepper Potts", status: "Operational", department: "Logistics" },
-  { id: "5", name: "Site E", address: "77 Innovation Ave, Tech Park", technician: "Stephen Strange", user: "Wong", status: "Alert State", department: "R&D" },
-];
+
 
 export default function AdministrationSitesPage() {
   const [sites, setSites] = useState<SiteItem[]>([]);

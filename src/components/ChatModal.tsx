@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { FiPaperclip, FiSend, FiUser, FiX } from "react-icons/fi";
+import { FiMessageSquare, FiPaperclip, FiSend, FiUser, FiX } from "react-icons/fi";
 import Image from "next/image";
 import { apiFetch } from "@/lib/apiFetch";
 import { API_BASE_URL } from "@/config";
@@ -28,6 +28,7 @@ interface ChatModalProps {
   showNewRequestSuggestion?: boolean;
   onTriggerNewRequest?: () => void;
   isTyping?: boolean;
+  isLoading?: boolean;
 }
 
 const isImageUrl = (text: string): boolean => {
@@ -49,6 +50,7 @@ export default function ChatModal({
   showNewRequestSuggestion,
   onTriggerNewRequest,
   isTyping,
+  isLoading,
 }: ChatModalProps) {
   const [inputValue, setInputValue] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -66,11 +68,11 @@ export default function ChatModal({
     // Reconstruct approved state based on subsequent chat messages
     const approved: Record<string, boolean> = {};
     messages.forEach((msg, idx) => {
-      const isNoticeMsg = msg.isNotice || msg.text.includes("NOTICE & NOTIFY APPLIED");
+      const isNoticeMsg = msg.isNotice || (msg.text && msg.text.includes("NOTICE & NOTIFY APPLIED"));
       if (isNoticeMsg) {
         // Check if there is an auto-reply approving it after this message
         const hasApproval = messages.slice(idx + 1).some(m => 
-          m.text.includes("The customer has approved the safety observation")
+          m.text && m.text.includes("The customer has approved the safety observation")
         );
         if (hasApproval) {
           approved[msg.id] = true;
@@ -196,10 +198,46 @@ export default function ChatModal({
         )}
 
         {/* Chat Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50 custom-scrollbar">
-          {displayMessages.map((msg) => {
-            const isNoticeMsg = msg.isNotice || msg.text.includes("NOTICE & NOTIFY APPLIED");
-            const isImg = isImageUrl(msg.text);
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50 custom-scrollbar flex flex-col">
+          {isLoading ? (
+            <div className="space-y-4 animate-pulse my-auto">
+              <div className="flex items-end gap-2.5 flex-row">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3 bg-gray-200 rounded w-24" />
+                  <div className="h-10 bg-gray-200 rounded-2xl rounded-bl-none w-2/3" />
+                </div>
+              </div>
+              <div className="flex items-end gap-2.5 flex-row-reverse">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="space-y-1.5 flex-1 flex flex-col items-end">
+                  <div className="h-3 bg-gray-200 rounded w-20" />
+                  <div className="h-12 bg-gray-200 rounded-2xl rounded-br-none w-3/4" />
+                </div>
+              </div>
+              <div className="flex items-end gap-2.5 flex-row">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3 bg-gray-200 rounded w-28" />
+                  <div className="h-8 bg-gray-200 rounded-2xl rounded-bl-none w-1/2" />
+                </div>
+              </div>
+            </div>
+          ) : displayMessages.length === 0 ? (
+            <div className="my-auto flex flex-col items-center justify-center text-center p-6 space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#D12031] flex items-center justify-center mb-1">
+                <FiMessageSquare size={24} />
+              </div>
+              <p className="text-sm font-bold text-gray-800">No messages in this channel yet</p>
+              <p className="text-xs text-gray-400 max-w-[260px]">
+                Type your message in the input below to start communicating with the customer and technician.
+              </p>
+            </div>
+          ) : (
+            displayMessages.map((msg) => {
+            const textContent = msg.text || "";
+            const isNoticeMsg = msg.isNotice || textContent.includes("NOTICE & NOTIFY APPLIED");
+            const isImg = isImageUrl(textContent);
 
             return (
               <div
@@ -260,12 +298,12 @@ export default function ChatModal({
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[10.5px]">
                         <div>
                           <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1">Notice Type</p>
-                          <p className="font-semibold text-gray-800">{msg.text.match(/Type:\s*([^\n]+)/)?.[1] || "General Observation"}</p>
+                          <p className="font-semibold text-gray-800">{textContent.match(/Type:\s*([^\n]+)/)?.[1] || "General Observation"}</p>
                         </div>
                         <div>
                           <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1">Priority</p>
-                          <p className={`font-extrabold uppercase ${msg.text.match(/Priority:\s*([^\n]+)/)?.[1]?.trim()?.toUpperCase() === "HIGH" ? "text-[#D12031]" : "text-gray-800"}`}>
-                            {msg.text.match(/Priority:\s*([^\n]+)/)?.[1] || "High"}
+                          <p className={`font-extrabold uppercase ${textContent.match(/Priority:\s*([^\n]+)/)?.[1]?.trim()?.toUpperCase() === "HIGH" ? "text-[#D12031]" : "text-gray-800"}`}>
+                            {textContent.match(/Priority:\s*([^\n]+)/)?.[1] || "High"}
                           </p>
                         </div>
                         <div className="col-span-2 sm:col-span-1">
@@ -277,7 +315,7 @@ export default function ChatModal({
                       <div className={`pt-3 border-t ${isApproved ? "border-green-200/50" : "border-red-200/50"}`}>
                         <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold mb-1.5">Detailed Description</p>
                         <p className="text-[12px] font-semibold text-gray-700 leading-relaxed whitespace-pre-wrap">
-                          {msg.text.match(/Description:\s*([\s\S]*?)(?:$)/)?.[1]?.trim() || "No description provided."}
+                          {textContent.match(/Description:\s*([\s\S]*?)(?:$)/)?.[1]?.trim() || "No description provided."}
                         </p>
                       </div>
                     </div>
@@ -301,7 +339,7 @@ export default function ChatModal({
                 </div>
               </div>
             );
-          })}
+          }))}
           
           {/* Typing Indicator */}
           {isTyping && (

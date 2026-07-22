@@ -5,6 +5,7 @@ import { FiUser } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import ChatModal from "@/components/ChatModal";
 import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface ChatMessage {
   id: number | string;
@@ -31,6 +32,15 @@ export default function AdminMessagesPage() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [convList, setConvList] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMsgsLoading, setIsMsgsLoading] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("error");
+
+  const showToast = (msg: string, type: "success" | "error" = "error") => {
+    setToastMsg(msg);
+    setToastType(type);
+    setTimeout(() => setToastMsg(""), 3500);
+  };
 
   const socketRef = useRef<WebSocket | null>(null);
   const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "offline">("connecting");
@@ -38,7 +48,9 @@ export default function AdminMessagesPage() {
   // Fetch initial conversations
   const fetchConversations = async () => {
     try {
-      const res = await fetch("/api/admin/conversations");
+      const res = await fetch(`${API_BASE_URL}/api/admin/conversations`, {
+        credentials: "include",
+      });
       if (res.ok) {
         const data = await res.json();
         // Add empty messages array for now, fetched on demand
@@ -61,8 +73,11 @@ export default function AdminMessagesPage() {
     if (!activeConv || activeConv.messages.length > 0) return;
     
     async function fetchMessages() {
+      setIsMsgsLoading(true);
       try {
-        const res = await fetch(`/api/admin/conversations/${activeConv!.id}/messages`);
+        const res = await fetch(`${API_BASE_URL}/api/admin/conversations/${activeConv!.id}/messages`, {
+          credentials: "include",
+        });
         if (res.ok) {
           const msgs = await res.json();
           setActiveConv(prev => prev ? { ...prev, messages: msgs } : null);
@@ -70,6 +85,8 @@ export default function AdminMessagesPage() {
         }
       } catch (err) {
         console.error("Failed to fetch messages:", err);
+      } finally {
+        setIsMsgsLoading(false);
       }
     }
     fetchMessages();
@@ -160,24 +177,34 @@ export default function AdminMessagesPage() {
   }, []);
 
   const handleSendMessage = async (text: string) => {
-    if (!activeConv) return;
+    if (!activeConv || !text.trim()) return;
 
     try {
-      const res = await fetch(`/api/admin/conversations/${activeConv.id}/messages`, {
+      const res = await apiFetch(`/api/admin/conversations/${activeConv.id}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
 
       if (!res.ok) {
         throw new Error("Failed to send message");
       }
-      
-      // The websocket will broadcast it back to us, so we don't necessarily need to add it manually here.
-      // However, to ensure immediate feedback, we can append it locally if it doesn't exist yet when WS fires.
+
+      const sentMsg = await res.json();
+      setActiveConv(prev => {
+        if (!prev) return null;
+        const exists = prev.messages.some(m => m.id === sentMsg.id);
+        if (exists) return prev;
+        return { ...prev, messages: [...prev.messages, sentMsg] };
+      });
+      setConvList(prev => prev.map(c => {
+        if (c.id !== activeConv.id) return c;
+        const exists = c.messages.some(m => m.id === sentMsg.id);
+        const updatedMsgs = exists ? c.messages : [...c.messages, sentMsg];
+        return { ...c, messages: updatedMsgs, preview: text, messageCount: c.messageCount + 1 };
+      }));
     } catch (err) {
       console.error(err);
-      alert("Failed to send message");
+      showToast("Failed to send message", "error");
     }
   };
 
@@ -221,8 +248,16 @@ export default function AdminMessagesPage() {
 
           {/* Conv List */}
           {loading ? (
-            <div className="flex justify-center p-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D12031]"></div>
+            <div className="divide-y divide-gray-100 p-4 space-y-3">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="p-4 flex items-center justify-between animate-pulse">
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-1/3" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </div>
+                  <div className="h-8 bg-gray-200 rounded-xl w-24" />
+                </div>
+              ))}
             </div>
           ) : convList.length === 0 ? (
             <div className="p-12 text-center text-gray-500 font-medium">
@@ -297,7 +332,15 @@ export default function AdminMessagesPage() {
           role: m.sender,
         })) : []}
         onSendMessage={handleSendMessage}
+        isLoading={isMsgsLoading}
       />
+
+      {/* 🔔 Toast Notification */}
+      {toastMsg && (
+        <div className={`fixed top-20 right-6 z-[9999] text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold border transition-all animate-bounce ${toastType === "success" ? "bg-emerald-600 border-emerald-500" : "bg-[#D12031] border-red-500"}`}>
+          <span>{toastMsg}</span>
+        </div>
+      )}
     </AdminLayout>
   );
 }

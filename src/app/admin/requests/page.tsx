@@ -11,6 +11,7 @@ import {
   FiTrash2,
   FiCheck,
   FiCalendar,
+  FiLoader,
 } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
 import AdminLayout from "@/components/AdminLayout";
@@ -36,7 +37,9 @@ interface WorkRequest {
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<WorkRequest[]>([]);
   const [techs, setTechs] = useState<any[]>([]);
+  const [sitesList, setSitesList] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,7 +56,7 @@ export default function AdminRequestsPage() {
       if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
       if (filterStatus && filterStatus !== "All") params.append("status", filterStatus);
       if (filterPriority && filterPriority !== "All") params.append("priority", filterPriority);
-      if (filterSite && filterSite !== "All") params.append("siteId", filterSite); // Note: filterSite currently stores name not ID, you might need to adjust this depending on backend
+      if (filterSite && filterSite !== "All") params.append("siteId", filterSite);
 
       const res = await fetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
       if (res.ok) {
@@ -79,9 +82,25 @@ export default function AdminRequestsPage() {
     }
   };
 
+  const fetchSites = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
+      if (res.ok) {
+        const json = await res.json();
+        const rawList = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : []);
+        const filteredList = rawList.filter((s: any) => s.name?.toLowerCase() !== "dummy");
+        setSitesList(filteredList);
+      }
+    } catch (err) {
+      console.error(err);
+      setSitesList([]);
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
     fetchTechs();
+    fetchSites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchTerm, filterStatus, filterPriority, filterSite]);
 
@@ -163,6 +182,7 @@ export default function AdminRequestsPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, {
         method: "POST",
@@ -194,6 +214,8 @@ export default function AdminRequestsPage() {
     } catch (err) {
       console.error(err);
       alert("Error creating work request.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -201,6 +223,7 @@ export default function AdminRequestsPage() {
     e.preventDefault();
     if (!activeRequest) return;
 
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
         method: "PUT",
@@ -231,11 +254,14 @@ export default function AdminRequestsPage() {
     } catch (err) {
       console.error(err);
       alert("Error updating work request.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteConfirm = async () => {
     if (!activeRequest) return;
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
         method: "DELETE",
@@ -249,6 +275,8 @@ export default function AdminRequestsPage() {
     } catch (err) {
       console.error(err);
       alert("Error deleting work request.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -309,11 +337,15 @@ export default function AdminRequestsPage() {
               className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-[#D12031]"
             >
               <option value="All">All Sites</option>
-              <option value="Site A">Site A</option>
-              <option value="Site B">Site B</option>
-              <option value="Site C">Site C</option>
-              <option value="Site D">Site D</option>
-              <option value="Site E">Site E</option>
+              {sitesList.length === 0 ? (
+                <option disabled value="">No Sites Found</option>
+              ) : (
+                sitesList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))
+              )}
             </select>
 
             {/* Status Filter */}
@@ -353,7 +385,58 @@ export default function AdminRequestsPage() {
 
         {/* 📋 Work Requests Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredRequests.map((req) => (
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs animate-pulse flex flex-col justify-between h-56"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-3.5 bg-gray-200 rounded w-28" />
+                    <div className="flex gap-2">
+                      <div className="h-4 bg-gray-200 rounded-full w-16" />
+                      <div className="h-4 bg-gray-200 rounded-full w-16" />
+                    </div>
+                  </div>
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
+                  <div className="h-3.5 bg-gray-200 rounded w-1/2 mb-4" />
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+                  <div className="h-3.5 bg-gray-200 rounded w-32" />
+                  <div className="h-7 bg-gray-200 rounded-lg w-24" />
+                </div>
+              </div>
+            ))
+          ) : filteredRequests.length === 0 ? (
+            <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-200 text-center flex flex-col items-center justify-center min-h-[300px]">
+              <div className="w-12 h-12 rounded-full bg-red-50 text-[#D12031] flex items-center justify-center mb-3">
+                <FiSearch size={22} />
+              </div>
+              <h4 className="text-base font-bold text-gray-900 mb-1">No Work Requests Found</h4>
+              <p className="text-xs font-semibold text-gray-500 max-w-sm mb-4">
+                We couldn't find any work requests matching your search query or selected filters.
+              </p>
+              {(searchTerm || filterSite !== "All" || filterStatus !== "All" || filterPriority !== "All") && (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterSite("All");
+                    setFilterStatus("All");
+                    setFilterPriority("All");
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer border-none"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredRequests.map((req) => (
             <div
               key={req.id}
               className="bg-white rounded-2xl border border-gray-200 border-l-[5px] rounded-l-2xl shadow-xs p-6 hover:shadow-md transition-shadow relative flex flex-col justify-between"
@@ -422,9 +505,13 @@ export default function AdminRequestsPage() {
                       title="Quick Assign Technician"
                     >
                       <option value="Unassigned">Assign Tech...</option>
-                      {techs.map((t, idx) => (
-                        <option key={idx} value={t.name}>{t.name}</option>
-                      ))}
+                      {techs.length === 0 ? (
+                        <option disabled value="">No Technicians Found</option>
+                      ) : (
+                        techs.map((t, idx) => (
+                          <option key={idx} value={t.name}>{t.name}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
@@ -457,12 +544,7 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
             </div>
-          ))}
-          {filteredRequests.length === 0 && (
-            <div className="col-span-full bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-500 font-semibold text-sm shadow-xs">
-              No work requests match the current filters.
-            </div>
-          )}
+          )))}
         </div>
 
       </div>
@@ -503,11 +585,15 @@ export default function AdminRequestsPage() {
                   onChange={(e) => setFormSite(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-[#D12031]"
                 >
-                  <option>Site A</option>
-                  <option>Site B</option>
-                  <option>Site C</option>
-                  <option>Site D</option>
-                  <option>Site E</option>
+                  {sitesList.length > 0 ? (
+                    sitesList.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="General">General Site</option>
+                  )}
                 </select>
               </div>
 
@@ -637,9 +723,13 @@ export default function AdminRequestsPage() {
                   className="w-full bg-white border border-gray-305 rounded-xl px-4 py-2.5 text-sm text-gray-950 outline-none focus:border-[#D12031]"
                 >
                   <option value="Unassigned">Unassigned (Assign Later)</option>
-                  {techs.map((t, idx) => (
-                    <option key={idx} value={t.name}>{t.name}</option>
-                  ))}
+                  {techs.length === 0 ? (
+                    <option disabled value="">No Technicians Available</option>
+                  ) : (
+                    techs.map((t, idx) => (
+                      <option key={idx} value={t.name}>{t.name}</option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -676,17 +766,19 @@ export default function AdminRequestsPage() {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsAddModalOpen(false)}
-                className="flex-1 py-2.5 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 onClick={handleAddSubmit}
-                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Submit Request
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Submit Request"}
               </button>
             </div>
           </div>
@@ -726,11 +818,15 @@ export default function AdminRequestsPage() {
                   onChange={(e) => setFormSite(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-[#D12031]"
                 >
-                  <option>Site A</option>
-                  <option>Site B</option>
-                  <option>Site C</option>
-                  <option>Site D</option>
-                  <option>Site E</option>
+                  {sitesList.length > 0 ? (
+                    sitesList.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="General">General Site</option>
+                  )}
                 </select>
               </div>
 
@@ -862,17 +958,19 @@ export default function AdminRequestsPage() {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsEditModalOpen(false)}
-                className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 onClick={handleEditSubmit}
-                className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Save Changes
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Save Changes"}
               </button>
             </div>
           </div>
@@ -894,16 +992,18 @@ export default function AdminRequestsPage() {
 
             <div className="flex gap-3">
               <button
+                disabled={isSubmitting}
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-750 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-750 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
+                disabled={isSubmitting}
                 onClick={handleDeleteConfirm}
-                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none"
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Delete
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Delete"}
               </button>
             </div>
           </div>
