@@ -21,6 +21,7 @@ import {
   FiMapPin,
 } from "react-icons/fi";
 import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -37,7 +38,9 @@ export default function AdminLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [adminSectionOpen, setAdminSectionOpen] = useState(false);
+  const [adminSectionOpen, setAdminSectionOpen] = useState(() =>
+    typeof window !== "undefined" ? window.location.pathname.startsWith("/admin/administration") : false
+  );
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -100,8 +103,26 @@ export default function AdminLayout({
     };
     
     fetchUser();
-    return () => { isMounted = false; };
+
+    const handleProfileUpdated = () => {
+      setIsLoadingAuth(true);
+      fetchUser();
+    };
+
+    window.addEventListener("user-profile-updated", handleProfileUpdated);
+
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener("user-profile-updated", handleProfileUpdated);
+    };
   }, [router]);
+
+  // Keep Administration dropdown open whenever user is on an administration page
+  useEffect(() => {
+    if (pathname.startsWith("/admin/administration")) {
+      setAdminSectionOpen(true);
+    }
+  }, [pathname]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -119,9 +140,8 @@ export default function AdminLayout({
   const handleSignOut = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
-        method: "POST",
-        credentials: "include"
+      await apiFetch(`/api/auth/logout`, {
+        method: "POST"
       });
     } catch (err) {
       console.error("Signout error:", err);
@@ -141,7 +161,7 @@ export default function AdminLayout({
 
   const adminSubItems = [
     { name: "Overview", path: "/admin/administration/overview", icon: <FiUsers size={16} /> },
-    { name: "Sites", path: "/admin/administration/sites", icon: <FiMapPin size={16} /> },
+    { name: "Sites & Depts", path: "/admin/administration/sites", icon: <FiMapPin size={16} /> },
     { name: "Settings", path: "/admin/administration/settings", icon: <FiSettings size={16} /> },
   ];
 
@@ -212,12 +232,17 @@ export default function AdminLayout({
                     key={subItem.name}
                     href={subItem.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 pl-12 pr-6 py-3 text-xs font-semibold text-white/80 border-b border-white/10 transition-colors select-none ${
-                      isActive ? "bg-[#A81828] text-white" : "hover:bg-white/5"
+                    className={`flex items-center gap-3 pl-12 pr-6 py-3 text-xs font-semibold border-b border-white/10 transition-colors select-none ${
+                      isActive
+                        ? "bg-[#A81828] text-white font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
                     }`}
                   >
-                    <span className="shrink-0">{subItem.icon}</span>
+                    <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-75"}`}>{subItem.icon}</span>
                     <span>{subItem.name}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
                   </Link>
                 );
               })}

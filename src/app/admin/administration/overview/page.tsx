@@ -7,6 +7,7 @@ import { API_BASE_URL } from "@/config";
 
 export default function AdministrationOverviewPage() {
   const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -18,6 +19,8 @@ export default function AdministrationOverviewPage() {
         }
       } catch (err) {
         console.error("Failed to fetch user stats", err);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchStats();
@@ -26,6 +29,65 @@ export default function AdministrationOverviewPage() {
   const counts = stats?.counts || { totalUsers: 0, customers: 0, technicians: 0, superAdmins: 0 };
   const sitesStats = stats?.sitesStats || [];
   const recentUsers = stats?.recentUsers || [];
+
+  /* ── Skeleton ── */
+  if (isLoading) {
+    return (
+      <AdminLayout
+        title="Administration Overview"
+        subtitle="Overview of system-wide users, registered sites, and platform telemetry"
+      >
+        <div className="max-w-7xl pb-2 space-y-8 animate-pulse">
+          {/* Stat cards skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-2.5 bg-gray-200 rounded-full w-24" />
+                  <div className="h-6 bg-gray-200 rounded-full w-14" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sites table skeleton */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-200 h-20 w-full" />
+            <div className="p-6 space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="grid grid-cols-5 gap-4">
+                  <div className="h-4 bg-gray-200 rounded-full col-span-1" />
+                  <div className="h-4 bg-gray-200 rounded-full col-span-2" />
+                  <div className="h-4 bg-gray-200 rounded-full col-span-1" />
+                  <div className="h-4 bg-gray-200 rounded-full col-span-1" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent users skeleton */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6">
+            <div className="h-5 bg-gray-200 rounded-full w-52 mb-5" />
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3.5 border border-gray-100 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+                    <div className="space-y-1.5">
+                      <div className="h-3 bg-gray-200 rounded-full w-32" />
+                      <div className="h-2.5 bg-gray-200 rounded-full w-48" />
+                    </div>
+                  </div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout
@@ -102,19 +164,27 @@ export default function AdministrationOverviewPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
-                {sitesStats.map((row: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-4 px-6 font-bold text-gray-900">{row.name}</td>
-                    <td className="py-4 px-6 font-medium text-gray-500">{row.address}</td>
-                    <td className="py-4 px-6 text-center text-gray-900">{row.users}</td>
-                    <td className="py-4 px-6 text-center text-gray-900">{row.jobs}</td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black border ${row.color}`}>
-                        {row.status}
-                      </span>
+                {sitesStats.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500 font-medium">
+                      No sites found.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  sitesStats.map((row: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-6 font-bold text-gray-900">{row.name || "N/A"}</td>
+                      <td className="py-4 px-6 font-medium text-gray-500">{row.address || "N/A"}</td>
+                      <td className="py-4 px-6 text-center text-gray-900">{row.users ?? "N/A"}</td>
+                      <td className="py-4 px-6 text-center text-gray-900">{row.jobs ?? "N/A"}</td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black border ${row.color}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -131,22 +201,28 @@ export default function AdministrationOverviewPage() {
           </div>
 
           <div className="space-y-4">
-            {recentUsers.map((usr: any, i: number) => (
-              <div key={i} className="flex items-center justify-between p-3.5 border border-gray-150 rounded-xl hover:bg-gray-50/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${usr.bg}`}>
-                    {usr.initials}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-950">{usr.name}</h4>
-                    <p className="text-[10px] text-gray-450 mt-0.5 font-semibold">
-                      {usr.role} • Registered to <span className="font-bold text-gray-700">{usr.site}</span>
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] text-gray-400 font-bold shrink-0">{usr.time}</span>
+            {recentUsers.length === 0 ? (
+              <div className="py-6 text-center text-gray-500 font-medium text-[13px] border border-gray-150 rounded-xl border-dashed">
+                No recent registrations found.
               </div>
-            ))}
+            ) : (
+              recentUsers.map((usr: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-3.5 border border-gray-150 rounded-xl hover:bg-gray-50/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${usr.bg || "bg-gray-100 text-gray-600"}`}>
+                      {usr.initials || "?"}
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-gray-900">{usr.name}</div>
+                      <div className="text-[11px] font-medium text-gray-500 mt-0.5">
+                        <span className="text-gray-700">{usr.role}</span> • Registered to {usr.site}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-400">{usr.time}</div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

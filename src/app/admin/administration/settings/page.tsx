@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FiShield,
   FiBriefcase,
@@ -12,7 +12,8 @@ import {
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
-import { useEffect } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+
 
 interface AdminUser {
   id: string;
@@ -37,10 +38,24 @@ interface BusinessAccount {
 export default function AdministrationSettingsPage() {
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  const [isSubmittingBiz, setIsSubmittingBiz] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  // Admin Delete Modal States
+  const [isDeleteAdminModalOpen, setIsDeleteAdminModalOpen] = useState(false);
+  const [activeAdminToDelete, setActiveAdminToDelete] = useState<AdminUser | null>(null);
+  const [isSavingDeleteAdmin, setIsSavingDeleteAdmin] = useState(false);
+
+  // Business Delete Modal States
+  const [isDeleteBizModalOpen, setIsDeleteBizModalOpen] = useState(false);
+  const [activeBizToDelete, setActiveBizToDelete] = useState<BusinessAccount | null>(null);
+  const [isSavingDeleteBiz, setIsSavingDeleteBiz] = useState(false);
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users`, { credentials: "include" });
+      const res = await apiFetch(`/api/admin/users`);
       if (res.ok) {
         const data = await res.json();
         setAdmins(data);
@@ -57,10 +72,11 @@ export default function AdministrationSettingsPage() {
 
   const fetchSites = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
+      const res = await apiFetch(`/api/admin/sites`);
       if (res.ok) {
         const data = await res.json();
-        setBusinesses(data);
+        // Backend returns { status: true, data: [...] }
+        setBusinesses(Array.isArray(data) ? data : (data.data || []));
       }
     } catch (err) {
       console.error("Failed to fetch sites:", err);
@@ -89,24 +105,22 @@ export default function AdministrationSettingsPage() {
   const [bizEmail, setBizEmail] = useState("");
   const [bizSites, setBizSites] = useState("Site A");
 
-  const [toastMsg, setToastMsg] = useState("");
-
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMsg(""), 3500);
   };
 
   const handleAddAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminName || !adminEmail || !adminPass) {
-      alert("Please fill in all user fields.");
+      showToast("Please fill in all user fields.", "error");
       return;
     }
+    setIsSubmittingUser(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const res = await apiFetch(`/api/admin/users`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           name: adminName,
           email: adminEmail,
@@ -129,46 +143,55 @@ export default function AdministrationSettingsPage() {
         showToast("User account created successfully!");
       } else {
         const err = await res.json();
-        alert(err.message || "Failed to create user.");
+        showToast(err.message || "Failed to create user.", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("Error creating user");
+      showToast("Error creating user", "error");
+    } finally {
+      setIsSubmittingUser(false);
     }
   };
 
-  const handleDeleteAdmin = async (id: string) => {
-    if (confirm("Are you sure you want to revoke this user's access?")) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
-        if (res.ok) {
-          await fetchUsers();
-          showToast("User access revoked.");
-        } else {
-          const err = await res.json();
-          alert(err.message || "Failed to delete user.");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Error deleting user");
+  const confirmDeleteAdmin = (adm: AdminUser) => {
+    setActiveAdminToDelete(adm);
+    setIsDeleteAdminModalOpen(true);
+  };
+
+  const handleDeleteAdmin = async () => {
+    if (!activeAdminToDelete) return;
+    setIsSavingDeleteAdmin(true);
+    try {
+      const res = await apiFetch(`/api/admin/users/${activeAdminToDelete.id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchUsers();
+        showToast("User access revoked.");
+        setIsDeleteAdminModalOpen(false);
+        setActiveAdminToDelete(null);
+      } else {
+        const err = await res.json();
+        showToast(err.message || "Failed to delete user.", "error");
       }
+    } catch (err) {
+      console.error(err);
+      showToast("Error deleting user", "error");
+    } finally {
+      setIsSavingDeleteAdmin(false);
     }
   };
 
   const handleAddBizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bizName || !bizContact || !bizEmail) {
-      alert("Please fill in all business fields.");
+      showToast("Please fill in all business fields.", "error");
       return;
     }
+    setIsSubmittingBiz(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, {
+      const res = await apiFetch(`/api/admin/sites`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           businessName: bizName,
           contact: bizContact,
@@ -184,34 +207,87 @@ export default function AdministrationSettingsPage() {
         showToast("Business entity registered successfully!");
       } else {
         const err = await res.json();
-        alert(err.message || "Failed to create business.");
+        showToast(err.message || "Failed to create business.", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("Error creating business");
+      showToast("Error creating business", "error");
+    } finally {
+      setIsSubmittingBiz(false);
     }
   };
 
-  const handleDeleteBiz = async (id: string) => {
-    if (confirm("Are you sure you want to suspend this business?")) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/sites/${id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
-        if (res.ok) {
-          await fetchSites();
-          showToast("Business account suspended.");
-        } else {
-          const err = await res.json();
-          alert(err.message || "Failed to suspend business.");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Error suspending business");
+  const confirmDeleteBiz = (biz: BusinessAccount) => {
+    setActiveBizToDelete(biz);
+    setIsDeleteBizModalOpen(true);
+  };
+
+  const handleDeleteBiz = async () => {
+    if (!activeBizToDelete) return;
+    setIsSavingDeleteBiz(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites/${activeBizToDelete.id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchSites();
+        showToast("Business account suspended.");
+        setIsDeleteBizModalOpen(false);
+        setActiveBizToDelete(null);
+      } else {
+        const err = await res.json();
+        showToast(err.message || "Failed to suspend business.", "error");
       }
+    } catch (err) {
+      console.error(err);
+      showToast("Error suspending business", "error");
+    } finally {
+      setIsSavingDeleteBiz(false);
     }
   };
+
+  /* ── Skeleton ── */
+  if (isLoading || isLoadingSites) {
+    return (
+      <AdminLayout
+        title="Administration Configuration"
+        subtitle="Register business accounts, delegate super admin permissions, and modify roles"
+      >
+        <div className="max-w-7xl pb-2 space-y-8 animate-pulse">
+          {/* Two column skeleton rows */}
+          {[...Array(2)].map((_, rowIdx) => (
+            <div key={rowIdx} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {[...Array(2)].map((_, colIdx) => (
+                <div key={colIdx} className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 space-y-4">
+                  <div className="h-4 bg-gray-200 rounded-full w-40" />
+                  <div className="h-3 bg-gray-200 rounded-full w-64" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-10 bg-gray-200 rounded-xl" />
+                    <div className="h-10 bg-gray-200 rounded-xl" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-10 bg-gray-200 rounded-xl" />
+                    <div className="h-10 bg-gray-200 rounded-xl" />
+                  </div>
+                  <div className="h-10 bg-gray-200 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ))}
+          {/* Permissions skeleton */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <div className="h-4 bg-gray-200 rounded-full w-48 mb-5" />
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl">
+                <div className="h-3 bg-gray-200 rounded-full w-64" />
+                <div className="w-10 h-5 bg-gray-200 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout
@@ -304,12 +380,16 @@ export default function AdministrationSettingsPage() {
                       onChange={(e) => setAdminSites(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-855 outline-none focus:border-[#D12031]"
                     >
-                      <option>All Sites</option>
-                      <option>Site A</option>
-                      <option>Site B</option>
-                      <option>Site C</option>
-                      <option>Site D</option>
-                      <option>Site E</option>
+                      {businesses.length === 0 ? (
+                        <option value="" disabled>-- No sites available --</option>
+                      ) : (
+                        <>
+                          <option value="All Sites">All Sites</option>
+                          {businesses.map((biz) => (
+                            <option key={biz.id} value={biz.id}>{biz.businessName}</option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -327,10 +407,14 @@ export default function AdministrationSettingsPage() {
 
                 <button
                   type="submit"
-                  className="w-full bg-[#D12031] hover:bg-[#b91c2c] text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm"
+                  disabled={isSubmittingUser}
+                  className="w-full bg-[#D12031] hover:bg-[#b91c2c] text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm disabled:opacity-70"
                 >
-                  <FiUserPlus size={15} />
-                  <span>Create User</span>
+                  {isSubmittingUser ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating...</>
+                  ) : (
+                    <><FiUserPlus size={15} /><span>Create User</span></>
+                  )}
                 </button>
               </form>
             </div>
@@ -348,15 +432,15 @@ export default function AdministrationSettingsPage() {
                 {admins.map((adm) => (
                   <div key={adm.id} className="py-3.5 flex items-start justify-between text-xs font-semibold">
                     <div className="space-y-0.5">
-                      <h4 className="text-gray-950 font-bold">{adm.name}</h4>
-                      <p className="text-[10px] text-gray-400 font-semibold">{adm.email}</p>
-                      {adm.phone && (
-                        <p className="text-[10px] text-gray-500 font-medium">Phone: {adm.phone}</p>
-                      )}
+                      <h4 className="text-gray-950 font-bold">{adm.name || "N/A"}</h4>
+                      <p className="text-[10px] text-gray-400 font-semibold">{adm.email || "N/A"}</p>
                       <p className="text-[10px] text-gray-500 font-medium">
-                        Dept: <span className="font-semibold text-gray-700">{adm.department || "Operations"}</span>
+                        Phone: <span className="font-semibold text-gray-700">{adm.phone || "N/A"}</span>
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-medium">
+                        Dept: <span className="font-semibold text-gray-700">{adm.department || "N/A"}</span>
                         {" • "}
-                        Sites: <span className="font-semibold text-[#D12031]">{adm.siteAccess || "All Sites"}</span>
+                        Sites: <span className="font-semibold text-[#D12031]">{adm.siteAccess || "N/A"}</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -365,7 +449,7 @@ export default function AdministrationSettingsPage() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleDeleteAdmin(adm.id)}
+                        onClick={() => confirmDeleteAdmin(adm)}
                         className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
                         title="Revoke Access"
                       >
@@ -430,10 +514,14 @@ export default function AdministrationSettingsPage() {
                   <div className="space-y-1.5 flex flex-col justify-end">
                     <button
                       type="submit"
-                      className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm h-[46px]"
+                      disabled={isSubmittingBiz}
+                      className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm h-[46px] disabled:opacity-70"
                     >
-                      <FiPlus size={15} />
-                      <span>Register Entity</span>
+                      {isSubmittingBiz ? (
+                        <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Registering...</>
+                      ) : (
+                        <><FiPlus size={15} /><span>Register Entity</span></>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -453,14 +541,32 @@ export default function AdministrationSettingsPage() {
                 {businesses.map((biz) => (
                   <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
                     <div>
-                      <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName}</h4>
-                      <p className="text-[10px] text-gray-450 mt-1">Rep: {biz.contact} • {biz.email}</p>
-                      <p className="text-[10px] text-gray-500 font-bold mt-1.5">Sites: <span className="text-[#D12031]">{biz.sitesAllocated}</span></p>
+                      <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
+                      <p className="text-[10px] text-gray-450 mt-1">
+                        Rep: {biz.contact || "N/A"} • {biz.email || "N/A"}
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-bold mt-1.5">
+                        Sites: <span className="text-[#D12031]">{biz.sitesAllocated || "N/A"}</span>
+                      </p>
                     </div>
 
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                      {biz.status}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                        (biz.status || "").toLowerCase() === "active" || (biz.status || "").toLowerCase() === "operational"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          : "bg-gray-100 text-gray-500 border-gray-200"
+                      }`}>
+                        {biz.status || "N/A"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => confirmDeleteBiz(biz)}
+                        className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
+                        title="Suspend Business"
+                      >
+                        <FiTrash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -516,10 +622,84 @@ export default function AdministrationSettingsPage() {
 
       </div>
 
+      {/* 🗑️ DELETE ADMIN MODAL */}
+      {isDeleteAdminModalOpen && activeAdminToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-4 text-[#D12031]">
+              <FiTrash2 size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Revoke Access?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to revoke access for &quot;{activeAdminToDelete.name}&quot;? They will no longer be able to log in.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteAdminModalOpen(false)}
+                disabled={isSavingDeleteAdmin}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAdmin}
+                disabled={isSavingDeleteAdmin}
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingDeleteAdmin ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Revoking...</>
+                ) : "Revoke"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ DELETE BUSINESS MODAL */}
+      {isDeleteBizModalOpen && activeBizToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-4 text-[#D12031]">
+              <FiTrash2 size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Suspend Business?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to suspend &quot;{activeBizToDelete.businessName}&quot;? All connected users will lose access.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteBizModalOpen(false)}
+                disabled={isSavingDeleteBiz}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteBiz}
+                disabled={isSavingDeleteBiz}
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingDeleteBiz ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Suspending...</>
+                ) : "Suspend"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast message */}
       {toastMsg && (
-        <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border border-emerald-500/20 animate-toast-in">
-          <FiCheck size={18} className="text-emerald-100" />
+        <div className={`fixed top-24 right-6 z-50 px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border animate-toast-in ${
+          toastType === "error"
+            ? "bg-red-600 text-white border-red-500/20"
+            : "bg-emerald-600 text-white border-emerald-500/20"
+        }`}>
+          <FiCheck size={18} className="opacity-90" />
           <span>{toastMsg}</span>
         </div>
       )}
