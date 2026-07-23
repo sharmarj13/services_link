@@ -167,21 +167,51 @@ export default function TechnicianLayout({
     router.push("/login");
   };
 
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [siteThemeColor, setSiteThemeColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentSite = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/sites/current`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status !== false) {
+            const site = data.data || data;
+            if (site.logoUrl) setSiteLogo(site.logoUrl);
+            if (site.themeColor) setSiteThemeColor(site.themeColor);
+          }
+        }
+      } catch (err) {
+        // Silently handle if no site is assigned yet
+      }
+    };
+    fetchCurrentSite();
+  }, []);
+
   const renderSidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#D12031] text-white">
+    <div 
+      className="flex flex-col h-full bg-[#D12031] text-white"
+      style={siteThemeColor ? { backgroundColor: siteThemeColor } : undefined}
+    >
       {/* Logo / Brand area */}
       <div className="flex items-center justify-center bg-white shrink-0 h-20 px-5">
         <img
-          src="/images/Logo.png"
+          src={siteLogo || "/images/Logo.png"}
           alt="ServiceLink Cardinal Group Logo"
           width={170}
           height={52}
-          className="object-contain"
+          className="object-contain max-h-16"
         />
       </div>
 
-      {/* Small red gap between logo and first nav item */}
-      <div className="shrink-0 h-2.5 bg-[#D12031]" />
+      {/* Small gap between logo and first nav item */}
+      <div 
+        className="shrink-0 h-2.5 bg-[#D12031]"
+        style={siteThemeColor ? { backgroundColor: siteThemeColor } : undefined}
+      />
 
       {/* Navigation items */}
       <div className="border-t border-white/15" />

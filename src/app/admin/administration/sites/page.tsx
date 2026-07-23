@@ -91,6 +91,7 @@ export default function AdministrationSitesPage() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [isDeptLoading, setIsDeptLoading] = useState(true);
   const [isSavingDept, setIsSavingDept] = useState(false);
+  const [isSavingEditDept, setIsSavingEditDept] = useState(false);
   const [deptFormName, setDeptFormName] = useState("");
   const [deptFormIsActive, setDeptFormIsActive] = useState(true);
   const [isEditDeptModalOpen, setIsEditDeptModalOpen] = useState(false);
@@ -225,7 +226,7 @@ export default function AdministrationSitesPage() {
       showToast("Department Name is required.", "error");
       return;
     }
-    setIsSavingDept(true);
+    setIsSavingEditDept(true);
     try {
       const res = await apiFetch(`/api/admin/departments/${activeDept.id}`, {
         method: "PUT",
@@ -247,7 +248,7 @@ export default function AdministrationSitesPage() {
       console.error(err);
       showToast("Error updating department", "error");
     } finally {
-      setIsSavingDept(false);
+      setIsSavingEditDept(false);
     }
   };
 
@@ -732,7 +733,13 @@ export default function AdministrationSitesPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {isDeptLoading ? (
-                      <tr><td colSpan={3} className="py-6 text-center text-xs text-gray-500 font-semibold animate-pulse">Loading departments...</td></tr>
+                      [...Array(3)].map((_, i) => (
+                        <tr key={i} className="animate-pulse border-b border-gray-100">
+                          <td className="py-3 px-5"><div className="h-4 bg-gray-200 rounded-md w-36" /></td>
+                          <td className="py-3 px-5"><div className="h-4 bg-gray-200 rounded-md w-14" /></td>
+                          <td className="py-3 px-5 text-right"><div className="h-4 bg-gray-200 rounded-md w-12 ml-auto" /></td>
+                        </tr>
+                      ))
                     ) : departments.length === 0 ? (
                       <tr><td colSpan={3} className="py-6 text-center text-xs text-gray-500 font-semibold">No departments created yet.</td></tr>
                     ) : (
@@ -1122,17 +1129,19 @@ export default function AdministrationSitesPage() {
                 <button
                   type="button"
                   onClick={() => setIsEditDeptModalOpen(false)}
-                  disabled={isSavingDept}
+                  disabled={isSavingEditDept}
                   className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSavingDept}
+                  disabled={isSavingEditDept}
                   className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                 >
-                  {isSavingDept ? "Saving..." : "Save Changes"}
+                  {isSavingEditDept ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                  ) : "Save Changes"}
                 </button>
               </div>
             </form>

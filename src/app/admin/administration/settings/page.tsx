@@ -182,7 +182,8 @@ export default function AdministrationSettingsPage() {
   const [bizName, setBizName] = useState("");
   const [bizContact, setBizContact] = useState("");
   const [bizEmail, setBizEmail] = useState("");
-  const [bizSites, setBizSites] = useState("Site A");
+  const [bizLogoUrl, setBizLogoUrl] = useState("");
+  const [bizThemeColor, setBizThemeColor] = useState("#D12031");
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
@@ -275,6 +276,8 @@ export default function AdministrationSettingsPage() {
           businessName: bizName,
           contact: bizContact,
           email: bizEmail,
+          logoUrl: bizLogoUrl,
+          themeColor: bizThemeColor,
           status: "active",
         }),
       });
@@ -283,6 +286,8 @@ export default function AdministrationSettingsPage() {
         setBizName("");
         setBizContact("");
         setBizEmail("");
+        setBizLogoUrl("");
+        setBizThemeColor("#D12031");
         showToast("Business entity registered successfully!");
       } else {
         const err = await res.json();
@@ -598,26 +603,34 @@ export default function AdministrationSettingsPage() {
                         onChange={(e) => setBizEmail(e.target.value)}
                       />
                     </div>
-                    <div className="space-y-1.5 relative">
-                      <label className="text-xs font-bold text-gray-700">Allocated Access Sites</label>
-                      <select
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none appearance-none"
-                        value={bizSites}
-                        onChange={(e) => setBizSites(e.target.value)}
-                      >
-                        {businesses.length === 0 ? (
-                          <option value="">-- No sites available --</option>
-                        ) : (
-                          businesses.map(site => (
-                            <option key={site.id} value={site.businessName}>
-                              {site.businessName}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                      <div className="absolute inset-y-0 right-4 top-6 flex items-center pointer-events-none">
-                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Logo Image URL</label>
+                      <input
+                        type="url"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="https://example.com/logo.png"
+                        value={bizLogoUrl}
+                        onChange={(e) => setBizLogoUrl(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Theme Color (Whitelabel)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        className="w-12 h-11 rounded-xl border border-gray-200 cursor-pointer bg-transparent p-1"
+                        value={bizThemeColor}
+                        onChange={(e) => setBizThemeColor(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="#D12031"
+                        value={bizThemeColor}
+                        onChange={(e) => setBizThemeColor(e.target.value)}
+                      />
                     </div>
                   </div>
                   
@@ -657,15 +670,21 @@ export default function AdministrationSettingsPage() {
                     <p className="text-[10px] text-gray-400 mt-1">Register your first entity to see it here</p>
                   </div>
                 ) : (
-                  businesses.map((biz) => (
+                  businesses.map((biz: any) => (
                     <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
                       <div>
-                        <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
+                          {biz.themeColor && (
+                            <span 
+                              className="w-3.5 h-3.5 rounded-full inline-block border border-black/10 shadow-xs" 
+                              style={{ backgroundColor: biz.themeColor }}
+                              title={`Theme: ${biz.themeColor}`}
+                            />
+                          )}
+                        </div>
                         <p className="text-[10px] text-gray-450 mt-1">
                           Rep: {biz.contact || "N/A"} • {biz.email || "N/A"}
-                        </p>
-                        <p className="text-[10px] text-gray-500 font-bold mt-1.5">
-                          Sites: <span className="text-[#D12031]">{biz.sitesAllocated || "N/A"}</span>
                         </p>
                       </div>
 
