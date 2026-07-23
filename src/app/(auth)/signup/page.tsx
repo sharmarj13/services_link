@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -37,9 +38,10 @@ export default function SignupPage() {
   useEffect(() => {
     const fetchSites = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/signup/sites`);
+        const res = await apiFetch(`${API_BASE_URL}/api/auth/signup/sites`);
         if (res.ok) {
-          const data: SiteOption[] = await res.json();
+          const jsonResponse = await res.json();
+          const data: SiteOption[] = jsonResponse.data !== undefined ? jsonResponse.data : jsonResponse;
           setSites(data);
         }
       } catch {
@@ -79,7 +81,7 @@ export default function SignupPage() {
       const selectedSite = sites.find((s) => s.name === site);
       const siteId = selectedSite?.id ?? "67332402-733c-4364-996e-020e138719d0";
 
-      const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -106,7 +108,7 @@ export default function SignupPage() {
       console.log("Signup success");
 
       // Verify session and redirect based on role
-      const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const meResponse = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
         credentials: "include",
       });
 
@@ -126,7 +128,9 @@ export default function SignupPage() {
       }
     } catch (err: unknown) {
       console.error("Signup error:", err);
-      setError("Server connection failed. Make sure the backend is running.");
+      setError(
+        (err as any).message || "Server connection failed. Make sure the backend is running."
+      );
       setIsLoading(false);
     }
   };

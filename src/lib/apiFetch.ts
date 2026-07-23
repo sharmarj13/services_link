@@ -43,9 +43,39 @@ export async function apiFetch(
 
   const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
 
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers,
     credentials: "include", // always send session cookies
   });
+
+  // Automatically parse JSON response
+  let jsonResponse;
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      jsonResponse = await response.json();
+    } catch (e) {
+      // Ignored
+    }
+  }
+
+  // If the backend wrapped it in { status, message, data }
+  if (jsonResponse && typeof jsonResponse.status === "boolean") {
+    let payloadToYield;
+    
+    if (jsonResponse.status === false) {
+      throw new Error(jsonResponse.message || "An error occurred");
+    } else {
+      payloadToYield = jsonResponse.data !== undefined ? jsonResponse.data : {};
+    }
+    
+    return new Response(JSON.stringify(payloadToYield), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+  }
+
+  return response;
 }

@@ -48,7 +48,7 @@ export default function AdminMessagesPage() {
   // Fetch initial conversations
   const fetchConversations = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/conversations`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/conversations`, {
         credentials: "include",
       });
       if (res.ok) {
@@ -75,7 +75,7 @@ export default function AdminMessagesPage() {
     async function fetchMessages() {
       setIsMsgsLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/conversations/${activeConv!.id}/messages`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/conversations/${activeConv!.id}/messages`, {
           credentials: "include",
         });
         if (res.ok) {

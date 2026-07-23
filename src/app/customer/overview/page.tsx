@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -141,14 +142,14 @@ export default function CustomerOverviewPage() {
       }
     } catch (err) {
       console.error("Error fetching dashboard details:", err);
-      setError("Failed to sync dashboard details from the server.");
+      setError((err as any).message || "Failed to sync dashboard details from the server.");
     }
   };
 
   useEffect(() => {
     const initDashboard = async () => {
       try {
-        const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const meResponse = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: "include",
         });
         if (!meResponse.ok) {
@@ -175,7 +176,7 @@ export default function CustomerOverviewPage() {
         await fetchDashboardData(siteId);
       } catch (err) {
         console.error("Init dashboard error:", err);
-        setError("Database server is offline or unreachable.");
+        setError((err as any).message || "Database server is offline or unreachable.");
       } finally {
         setIsLoading(false);
       }

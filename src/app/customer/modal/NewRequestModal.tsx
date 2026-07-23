@@ -118,7 +118,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
       }
     } catch (err) {
       console.error("Upload error:", err);
-      setError("An error occurred while uploading photos.");
+      setError((err as any).message || "An error occurred while uploading photos.");
     } finally {
       setIsUploading(false);
       // Reset input
@@ -200,7 +200,9 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
       onClose();
     } catch (err) {
       console.error("Submit request error:", err);
-      setError("Server connection failed. Make sure the backend is running.");
+      setError(
+        (err as any).message || "Server connection failed. Make sure the backend is running."
+      );
     } finally {
       setIsLoading(false);
     }

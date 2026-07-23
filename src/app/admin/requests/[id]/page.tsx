@@ -1,4 +1,5 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
@@ -240,7 +241,7 @@ export default function AdminRequestDetailPage() {
   useEffect(() => {
     const fetchTechs = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setTechsList(Array.isArray(data) ? data : []);
@@ -263,7 +264,7 @@ export default function AdminRequestDetailPage() {
 
       const fetchJob = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
+          const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
             credentials: "include",
           });
           if (res.ok) {
@@ -344,7 +345,7 @@ export default function AdminRequestDetailPage() {
 
         {loading ? (
           /* Page Skeleton Loader */
-          <div className="flex flex-col lg:flex-row gap-6 animate-pulse">
+          (<div className="flex flex-col lg:flex-row gap-6 animate-pulse">
             <div className="flex-1 space-y-5">
               <div className="bg-white rounded-2xl border border-gray-200 p-6 h-64 space-y-4">
                 <div className="h-6 bg-gray-200 rounded w-1/3" />
@@ -370,10 +371,10 @@ export default function AdminRequestDetailPage() {
                 <div className="h-10 bg-gray-200 rounded-xl w-full" />
               </div>
             </div>
-          </div>
+          </div>)
         ) : isAssigned ? (
           /* ══════════════ ASSIGNED LAYOUT ══════════════ */
-          <div className="flex flex-col lg:flex-row gap-6">
+          (<div className="flex flex-col lg:flex-row gap-6">
             {/* ── Left Column ── */}
             <div className="flex-1 flex flex-col gap-5 min-w-0">
               {/* Job Information Card */}
@@ -480,7 +481,6 @@ export default function AdminRequestDetailPage() {
                 </button>
               </div>
             </div>
-
             {/* ── Right Column ── */}
             <div className="w-full lg:w-[310px] flex flex-col gap-5 shrink-0">
               {/* Assign Technician Card (Only shown if unassigned) */}
@@ -524,19 +524,19 @@ export default function AdminRequestDetailPage() {
                                 body: JSON.stringify({ assignedEmployeeId: val, status: "active" })
                               });
                               if (res.ok) {
-                                alert(`Technician assigned successfully. Status updated to Active.`);
+                                toast.success(`Technician assigned successfully. Status updated to Active.`);
                                 window.location.reload();
                               } else {
-                                alert("Failed to assign technician.");
+                                toast.error("Failed to assign technician.");
                               }
                             } catch (err) {
                               console.error(err);
-                              alert("An error occurred while assigning.");
+                              toast.error((err as any).message || "An error occurred while assigning.");
                             }
                           };
                           assignRequest();
                         } else {
-                          alert("Please select a technician.");
+                          toast.error("Please select a technician.");
                         }
                       }}
                       className="w-full py-2.5 bg-[#D12031] text-white rounded-xl font-bold text-xs hover:bg-[#a81828] transition-colors border-none cursor-pointer"
@@ -653,10 +653,10 @@ export default function AdminRequestDetailPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>)
         ) : (
           /* ══════════════ IN-PROGRESS / COMPLETED LAYOUT ══════════════ */
-          <div className="flex flex-col lg:flex-row gap-6">
+          (<div className="flex flex-col lg:flex-row gap-6">
             {/* ── Left Column – Job History ── */}
             <div className="flex-1 min-w-0">
               <div className="bg-white rounded-2xl shadow-sm border border-[#e0e0e0] overflow-hidden">
@@ -938,7 +938,6 @@ export default function AdminRequestDetailPage() {
                 </div>
               )}
             </div>
-
             {/* ── Right Column ── */}
             <div className="w-full lg:w-[280px] flex flex-col gap-5 shrink-0">
               {/* Before Photos */}
@@ -1155,10 +1154,9 @@ export default function AdminRequestDetailPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>)
         )}
       </div>
-
       {/* ══════════════ Delete Confirm Modal ══════════════ */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
@@ -1195,7 +1193,6 @@ export default function AdminRequestDetailPage() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes modalSlideUp {
           from { opacity: 0; transform: translateY(20px) scale(0.97); }

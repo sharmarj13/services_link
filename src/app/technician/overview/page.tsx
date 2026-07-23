@@ -1,4 +1,5 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
@@ -251,11 +252,11 @@ export default function App() {
         fetchActiveJobs();
       } else {
         const errorData = await entryRes.json();
-        alert(`Failed to save work log: ${errorData.message || "Unknown error"}`);
+        toast.error(`Failed to save work log: ${errorData.message || "Unknown error"}`);
       }
     } catch (err) {
       console.error("Error submitting work entry:", err);
-      alert("Failed to submit work log due to network or server error.");
+      toast.error((err as any).message || "Failed to submit work log due to network or server error.");
     } finally {
       setIsSubmitting(false);
     }
@@ -559,7 +560,7 @@ export default function App() {
                 </div>
               ) : activeJobId === null ? (
                 /* Empty State */
-                <div className="text-center py-12 px-4 text-slate-400 max-w-sm mx-auto bg-white rounded-xl border border-slate-200">
+                (<div className="text-center py-12 px-4 text-slate-400 max-w-sm mx-auto bg-white rounded-xl border border-slate-200">
                   <div className="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mx-auto mb-4">
                     <Briefcase size={24} />
                   </div>
@@ -567,7 +568,7 @@ export default function App() {
                   <p className="text-xs text-slate-400 mt-2 pb-2 font-medium leading-relaxed">
                     Review the assigned work list below and select &quot;Start Job&quot; on a queued task to initiate the tracking stepper.
                   </p>
-                </div>
+                </div>)
               ) : (() => {
                 const activeJob = activeJobs.find((j) => j.id === activeJobId);
                 if (!activeJob) return null;
@@ -785,7 +786,6 @@ export default function App() {
           />
         </>
       )}
-
       {/* Overlays / Modals */}
       <NoticeBroadcastModal
         isOpen={isNotifyOpen}

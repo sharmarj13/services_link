@@ -1,4 +1,6 @@
-"use client";
+"use client";import { apiFetch } from "@/lib/apiFetch";
+;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -58,7 +60,7 @@ export default function AdminRequestsPage() {
       if (filterPriority && filterPriority !== "All") params.append("priority", filterPriority);
       if (filterSite && filterSite !== "All") params.append("siteId", filterSite);
 
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setRequests(data);
@@ -72,7 +74,7 @@ export default function AdminRequestsPage() {
 
   const fetchTechs = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setTechs(data);
@@ -84,7 +86,7 @@ export default function AdminRequestsPage() {
 
   const fetchSites = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
       if (res.ok) {
         const json = await res.json();
         const rawList = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : []);
@@ -178,13 +180,13 @@ export default function AdminRequestsPage() {
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle || !formDesc || !formCust) {
-      alert("Please fill in all required fields.");
+      toast.success("Please fill in all required fields.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -209,11 +211,11 @@ export default function AdminRequestsPage() {
         resetForm();
         showToast("Work Request created successfully!");
       } else {
-        alert("Failed to create work request.");
+        toast.error("Failed to create work request.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error creating work request.");
+      toast.error((err as any).message || "Error creating work request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -225,7 +227,7 @@ export default function AdminRequestsPage() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -249,11 +251,11 @@ export default function AdminRequestsPage() {
         setIsEditModalOpen(false);
         showToast("Work Request updated successfully!");
       } else {
-        alert("Failed to update work request.");
+        toast.error("Failed to update work request.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error updating work request.");
+      toast.error((err as any).message || "Error updating work request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -263,7 +265,7 @@ export default function AdminRequestsPage() {
     if (!activeRequest) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -274,7 +276,7 @@ export default function AdminRequestsPage() {
       }
     } catch (err) {
       console.error(err);
-      alert("Error deleting work request.");
+      toast.error((err as any).message || "Error deleting work request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -283,7 +285,7 @@ export default function AdminRequestsPage() {
   const handleQuickAssign = async (id: string, technicianName: string) => {
     try {
       const status = technicianName === "Unassigned" ? "Pending" : "Active";
-      const res = await fetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

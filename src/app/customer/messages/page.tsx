@@ -57,7 +57,7 @@ export default function CustomerMessagesPage() {
   const loadData = async () => {
     try {
       // 1. Fetch Session
-      const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
+      const meRes = await apiFetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
       if (!meRes.ok) return;
       const meData = await meRes.json();
       const sId = (meData.data?.user || meData.user)?.siteUser?.siteId;

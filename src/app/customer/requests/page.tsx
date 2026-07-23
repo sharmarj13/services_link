@@ -1,4 +1,6 @@
-"use client";
+"use client";import { apiFetch } from "@/lib/apiFetch";
+;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -145,7 +147,7 @@ export default function CustomerRequestsPage() {
       }
     } catch (err) {
       console.error("Error fetching requests:", err);
-      setError("Failed to sync work requests from the server.");
+      setError((err as any).message || "Failed to sync work requests from the server.");
     } finally {
       setIsLoading(false);
     }
@@ -154,7 +156,7 @@ export default function CustomerRequestsPage() {
   useEffect(() => {
     const initPage = async () => {
       try {
-        const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const meRes = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: "include",
         });
         if (!meRes.ok) {
@@ -178,7 +180,7 @@ export default function CustomerRequestsPage() {
         await fetchWorkRequests(siteId, activeFilters, debouncedSearchQuery, activeStatus);
       } catch (err) {
         console.error("Init requests page error:", err);
-        setError("Database server is offline or unreachable.");
+        setError((err as any).message || "Database server is offline or unreachable.");
         setIsLoading(false);
       }
     };
@@ -205,7 +207,7 @@ export default function CustomerRequestsPage() {
 
   const handleExportCSV = () => {
     if (filteredJobs.length === 0) {
-      alert("No data to export.");
+      toast.success("No data to export.");
       return;
     }
     

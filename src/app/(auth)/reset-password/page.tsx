@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -43,7 +44,7 @@ function ResetPasswordForm() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,7 +64,7 @@ function ResetPasswordForm() {
         router.push("/login");
       }, 3000);
     } catch (err: any) {
-      setError(err.message || "Server connection failed.");
+      setError((err as any).message || "Server connection failed.");
     } finally {
       setIsLoading(false);
     }

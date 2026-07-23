@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/config";
@@ -10,7 +11,7 @@ export default function DashboardRedirectPage() {
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: "include",
         });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -36,7 +37,7 @@ export default function AdminInProgressPage() {
   useEffect(() => {
     async function fetchJobs() {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/work-requests`, { credentials: "include" });
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests`, { credentials: "include" });
         if (res.ok) {
           const reqs = await res.json();
           const active = reqs.filter((r: { status: string }) => r.status.toLowerCase() !== "completed");
@@ -67,7 +68,7 @@ export default function AdminInProgressPage() {
 
     async function fetchTechs() {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setTechsList(Array.isArray(data) ? data : []);

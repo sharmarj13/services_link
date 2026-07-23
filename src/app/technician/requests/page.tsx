@@ -1,4 +1,5 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -171,20 +172,20 @@ export default function WorkRequestsPage() {
         body: JSON.stringify({ status: "in_progress" })
       });
       if (res.ok) {
-        alert("You have successfully started this job!");
+        toast.success("You have successfully started this job!");
         fetchJobs(activeFilter, debouncedSearchQuery, currentFilters); // refresh list
       } else {
-        alert("Failed to start job. Please try again.");
+        toast.error("Failed to start job. Please try again.");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to start job due to network error.");
+      toast.error((e as any).message || "Failed to start job due to network error.");
     }
   };
 
   const handleExport = () => {
     if (filteredJobs.length === 0) {
-      alert("No data available to export");
+      toast.success("No data available to export");
       return;
     }
     const headers = ["ID", "Title", "Location", "Priority", "Status"];

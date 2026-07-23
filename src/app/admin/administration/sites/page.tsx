@@ -37,10 +37,12 @@ export default function AdministrationSitesPage() {
       const res = await apiFetch(`/api/admin/sites`);
       if (res.ok) {
         const data = await res.json();
-        if (data.status) {
-          setSites(data.data || []);
+        if (Array.isArray(data)) {
+          setSites(data);
+        } else if (data && data.status !== undefined) { // Fallback if backend wasn't unwrapped
+          if (data.status) setSites(data.data || []);
         } else {
-          console.error("Failed to fetch sites:", data.message);
+          setSites(data || []);
         }
       }
     } catch (err) {
@@ -56,7 +58,13 @@ export default function AdministrationSitesPage() {
       const res = await apiFetch(`/api/admin/departments`);
       if (res.ok) {
         const data = await res.json();
-        if (data.status) setDepartments(data.data || []);
+        if (Array.isArray(data)) {
+          setDepartments(data);
+        } else if (data && data.status !== undefined) {
+          if (data.status) setDepartments(data.data || []);
+        } else {
+          setDepartments(data || []);
+        }
       }
     } catch (err) {
       console.error(err);

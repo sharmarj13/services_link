@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiMail, FiLogIn } from "react-icons/fi";
@@ -14,6 +15,28 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    async function checkExistingAuth() {
+      try {
+        const res = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const meData = await res.json();
+          const userObj = meData.user || meData.data?.user || meData || {};
+          const role = userObj.role || userObj.siteUser?.role || "customer";
+          const isAdmin = Boolean(userObj.isAdmin || userObj.siteUser?.role === "admin" || userObj.email?.includes("admin"));
+          const targetRedirect = meData.redirect || (isAdmin ? "/admin/overview" : role === "tech" ? "/technician/overview" : "/customer/overview");
+
+          router.replace(targetRedirect);
+        }
+      } catch (err) {
+        // Not logged in, stay on page
+      }
+    }
+    checkExistingAuth();
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -21,7 +44,7 @@ export default function LoginPage() {
 
     try {
       // 1. Call login endpoint on backend Port 5000 dynamically
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -41,7 +64,7 @@ export default function LoginPage() {
       console.log("Login success:", data);
 
       // 2. Fetch role details using /me endpoint dynamically
-      const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const meResponse = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
         credentials: "include",
       });
 
@@ -63,7 +86,9 @@ export default function LoginPage() {
       router.push(targetRedirect);
     } catch (err: unknown) {
       console.error("Login request error:", err);
-      setError("Server connection failed. Make sure the backend is running.");
+      setError(
+        (err as any).message || "Server connection failed. Make sure the backend is running."
+      );
       setIsLoading(false);
     }
   };

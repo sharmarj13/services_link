@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -62,7 +63,7 @@ export default function AdminOverviewPage() {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats?scope=${encodeURIComponent(timeScope)}`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/dashboard/stats?scope=${encodeURIComponent(timeScope)}`, {
           credentials: "include",
         });
         if (res.ok) {

@@ -1,4 +1,5 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -101,13 +102,13 @@ export default function JobDetailPage() {
       if (res.ok) {
         setIsStarted(true);
         setJob((prev: any) => ({ ...prev, status: "in_progress" }));
-        alert("You have started the job!");
+        toast.success("You have started the job!");
       } else {
-        alert("Failed to start job");
+        toast.error("Failed to start job");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to start job due to network error");
+      toast.error((e as any).message || "Failed to start job due to network error");
     }
   };
 
@@ -157,7 +158,7 @@ export default function JobDetailPage() {
         window.dispatchEvent(new Event("storage"));
         setIsNotifyOpen(false);
       } else {
-        alert("Failed to broadcast safety notice.");
+        toast.error("Failed to broadcast safety notice.");
       }
     } catch (e) {
       console.error(e);
@@ -177,7 +178,7 @@ export default function JobDetailPage() {
         setTimeout(() => setToastMsg(""), 3000);
         window.dispatchEvent(new Event("storage"));
       } else {
-        alert("Failed to clear safety notice.");
+        toast.error("Failed to clear safety notice.");
       }
     } catch (e) {
       console.error(e);

@@ -1,4 +1,5 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
@@ -177,12 +178,12 @@ export default function CustomerRequestDetailPage() {
           showToast("Photo uploaded successfully!");
           await fetchJobDetail();
         } else {
-          alert("Failed to update attachments.");
+          toast.error("Failed to update attachments.");
         }
       }
     } catch (err) {
       console.error("Upload error:", err);
-      alert("An error occurred during file upload.");
+      toast.error((err as any).message || "An error occurred during file upload.");
     } finally {
       setIsSaving(false);
       if (fileInputRef.current) {
@@ -210,11 +211,11 @@ export default function CustomerRequestDetailPage() {
         showToast("Attachment removed successfully!");
         await fetchJobDetail();
       } else {
-        alert("Failed to delete attachment.");
+        toast.error("Failed to delete attachment.");
       }
     } catch (err) {
       console.error("Delete attachment error:", err);
-      alert("Error deleting attachment.");
+      toast.error((err as any).message || "Error deleting attachment.");
     } finally {
       setIsSaving(false);
     }
@@ -320,7 +321,7 @@ export default function CustomerRequestDetailPage() {
     if (!params?.id) return;
     const id = params.id as string;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/work-requests/${id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/work-requests/${id}`, {
         credentials: "include"
       });
       if (!res.ok) {
@@ -361,7 +362,7 @@ export default function CustomerRequestDetailPage() {
       setJob(mappedJob);
     } catch (err) {
       console.error("Fetch request error:", err);
-      setError("Connection to backend server failed.");
+      setError((err as any).message || "Connection to backend server failed.");
     }
   }, [params]);
 
@@ -369,7 +370,9 @@ export default function CustomerRequestDetailPage() {
     e.preventDefault();
     if (!job) return;
     if (!editTitle.trim() || !editDetailedDesc.trim()) {
-      alert("Please fill in all required fields (Request Title and Detailed Description).");
+      toast.success(
+        "Please fill in all required fields (Request Title and Detailed Description)."
+      );
       return;
     }
 
@@ -400,7 +403,7 @@ export default function CustomerRequestDetailPage() {
 
       if (!response.ok) {
         const errObj = await response.json();
-        alert(errObj.message || "Failed to update work request details.");
+        toast.error(errObj.message || "Failed to update work request details.");
         setIsSaving(false);
         return;
       }
@@ -410,7 +413,7 @@ export default function CustomerRequestDetailPage() {
       await fetchJobDetail();
     } catch (err) {
       console.error("Update request error:", err);
-      alert("Server connection failed. Could not save changes.");
+      toast.error((err as any).message || "Server connection failed. Could not save changes.");
     } finally {
       setIsSaving(false);
     }
@@ -426,7 +429,7 @@ export default function CustomerRequestDetailPage() {
 
       if (!response.ok) {
         const errObj = await response.json();
-        alert(errObj.message || "Failed to delete work request.");
+        toast.error(errObj.message || "Failed to delete work request.");
         setIsDeleting(false);
         return;
       }
@@ -435,7 +438,7 @@ export default function CustomerRequestDetailPage() {
       router.push("/customer/requests");
     } catch (err) {
       console.error("Delete request error:", err);
-      alert("Server connection failed. Could not delete request.");
+      toast.error((err as any).message || "Server connection failed. Could not delete request.");
     } finally {
       setIsDeleting(false);
     }
@@ -593,7 +596,7 @@ export default function CustomerRequestDetailPage() {
 
         {isAssigned ? (
           /* ══════════════ ASSIGNED LAYOUT ══════════════ */
-          <div className="flex flex-col lg:flex-row gap-6">
+          (<div className="flex flex-col lg:flex-row gap-6">
             {/* ── Left Column ── */}
             <div className="flex-1 flex flex-col gap-5 min-w-0">
               {/* Job Information Card */}
@@ -747,7 +750,6 @@ export default function CustomerRequestDetailPage() {
                 </button>
               </div>
             </div>
-
             {/* ── Right Column ── */}
             <div className="w-full lg:w-[310px] flex flex-col gap-5 shrink-0">
               {/* Contact Details Card */}
@@ -839,10 +841,10 @@ export default function CustomerRequestDetailPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>)
         ) : (
           /* ══════════════ IN-PROGRESS / COMPLETED LAYOUT ══════════════ */
-          <div className="flex flex-col lg:flex-row gap-6">
+          (<div className="flex flex-col lg:flex-row gap-6">
             {/* ── Left Column – Job History ── */}
             <div className="flex-1 min-w-0">
               <div className="bg-white rounded-2xl shadow-sm border border-[#e0e0e0] overflow-hidden">
@@ -1072,7 +1074,6 @@ export default function CustomerRequestDetailPage() {
                 </div>
               )}
             </div>
-
             {/* ── Right Column – Photos ── */}
             <div className="w-full lg:w-[270px] shrink-0 flex flex-col gap-5">
               {/* Before Photos */}
@@ -1298,10 +1299,9 @@ export default function CustomerRequestDetailPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>)
         )}
       </div>
-
       {/* ══════════════ Edit Request Modal ══════════════ */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -1479,7 +1479,6 @@ export default function CustomerRequestDetailPage() {
           </div>
         </div>
       )}
-
       {/* ══════════════ Delete Confirm Modal ══════════════ */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
@@ -1526,7 +1525,6 @@ export default function CustomerRequestDetailPage() {
           </div>
         </div>
       )}
-
       {/* Toast message */}
       {toastMsg && (
         <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border border-emerald-500/20 animate-toast-in">
@@ -1534,7 +1532,6 @@ export default function CustomerRequestDetailPage() {
           <span>{toastMsg}</span>
         </div>
       )}
-
       {/* ══════════════ Photo Preview Modal (Lightbox) ══════════════ */}
       {isPreviewOpen && previewImages.length > 0 && (
         <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
@@ -1601,7 +1598,6 @@ export default function CustomerRequestDetailPage() {
           )}
         </div>
       )}
-
       <style>{`
         @keyframes modalSlideUp {
           from { opacity: 0; transform: translateY(20px) scale(0.97); }

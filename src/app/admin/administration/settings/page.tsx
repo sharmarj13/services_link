@@ -115,11 +115,58 @@ export default function AdministrationSettingsPage() {
     }
   };
 
+  const [platformSettings, setPlatformSettings] = useState<any>(null);
+
+  const fetchPlatformSettings = async () => {
+    try {
+      const res = await apiFetch("/api/admin/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setPlatformSettings(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleTogglePermission = async (key: string, currentValue: boolean) => {
+    if (!currentUser?.isSuperAdmin) {
+      setToastMsg("Only Super Admins can modify global permissions.");
+      setToastType("error");
+      return;
+    }
+    
+    // Optimistic update
+    setPlatformSettings((prev: any) => ({ ...prev, [key]: !currentValue }));
+    
+    try {
+      const res = await apiFetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: !currentValue })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.status) {
+        throw new Error(data.message || "Failed to update");
+      }
+      setToastMsg("Platform setting updated successfully");
+      setToastType("success");
+      setTimeout(() => setToastMsg(""), 3000);
+    } catch (err: any) {
+      // Revert on error
+      setPlatformSettings((prev: any) => ({ ...prev, [key]: currentValue }));
+      setToastMsg((err as any).message || "Failed to update setting");
+      setToastType("error");
+      setTimeout(() => setToastMsg(""), 3000);
+    }
+  };
+
   useEffect(() => {
     fetchCurrentUser();
     fetchUsers();
     fetchSites();
     fetchDepartments();
+    fetchPlatformSettings();
   }, []);
 
   // Form states - Admin
@@ -175,7 +222,7 @@ export default function AdministrationSettingsPage() {
         showToast("User account created successfully!");
       } else {
         const err = await res.json();
-        showToast(err.message || "Failed to create user.", "error");
+        showToast((err as any).message || "Failed to create user.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -204,7 +251,7 @@ export default function AdministrationSettingsPage() {
         setActiveAdminToDelete(null);
       } else {
         const err = await res.json();
-        showToast(err.message || "Failed to delete user.", "error");
+        showToast((err as any).message || "Failed to delete user.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -239,7 +286,7 @@ export default function AdministrationSettingsPage() {
         showToast("Business entity registered successfully!");
       } else {
         const err = await res.json();
-        showToast(err.message || "Failed to create business.", "error");
+        showToast((err as any).message || "Failed to create business.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -268,7 +315,7 @@ export default function AdministrationSettingsPage() {
         setActiveBizToDelete(null);
       } else {
         const err = await res.json();
-        showToast(err.message || "Failed to suspend business.", "error");
+        showToast((err as any).message || "Failed to suspend business.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -518,50 +565,72 @@ export default function AdministrationSettingsPage() {
               </p>
 
               <form onSubmit={handleAddBizSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Business / Site Name</label>
+                    <label className="text-xs font-bold text-gray-700">Business Company Name *</label>
                     <input
                       type="text"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                      placeholder="e.g. Cardinal Group Ltd"
+                      placeholder="e.g. BuildersInc Co."
                       value={bizName}
                       onChange={(e) => setBizName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Primary Contact Person</label>
+                    <label className="text-xs font-bold text-gray-700">Account Contact Representative *</label>
                     <input
                       type="text"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                      placeholder="e.g. Jane Doe"
+                      placeholder="e.g. Sarah Connor"
                       value={bizContact}
                       onChange={(e) => setBizContact(e.target.value)}
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Contact Email</label>
-                    <input
-                      type="email"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                      placeholder="contact@company.com"
-                      value={bizEmail}
-                      onChange={(e) => setBizEmail(e.target.value)}
-                    />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Contact Email *</label>
+                      <input
+                        type="email"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="sarah@builders.com"
+                        value={bizEmail}
+                        onChange={(e) => setBizEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5 relative">
+                      <label className="text-xs font-bold text-gray-700">Allocated Access Sites</label>
+                      <select
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none appearance-none"
+                        value={bizSites}
+                        onChange={(e) => setBizSites(e.target.value)}
+                      >
+                        {businesses.length === 0 ? (
+                          <option value="">-- No sites available --</option>
+                        ) : (
+                          businesses.map(site => (
+                            <option key={site.id} value={site.businessName}>
+                              {site.businessName}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <div className="absolute inset-y-0 right-4 top-6 flex items-center pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 flex flex-col justify-end">
+                  
+                  <div className="pt-2">
                     <button
                       type="submit"
                       disabled={isSubmittingBiz}
-                      className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm h-[46px] disabled:opacity-70"
+                      className="w-full bg-[#D12031] hover:bg-[#b01b29] text-white py-3 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm h-[46px] disabled:opacity-70"
                     >
                       {isSubmittingBiz ? (
-                        <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Registering...</>
+                        <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Onboarding...</>
                       ) : (
-                        <><FiPlus size={15} /><span>Register Entity</span></>
+                        <><FiPlus size={15} /><span>Onboard Business Partner</span></>
                       )}
                     </button>
                   </div>
@@ -579,37 +648,47 @@ export default function AdministrationSettingsPage() {
               </div>
 
               <div className="divide-y divide-gray-100">
-                {businesses.map((biz) => (
-                  <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
-                    <div>
-                      <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
-                      <p className="text-[10px] text-gray-450 mt-1">
-                        Rep: {biz.contact || "N/A"} • {biz.email || "N/A"}
-                      </p>
-                      <p className="text-[10px] text-gray-500 font-bold mt-1.5">
-                        Sites: <span className="text-[#D12031]">{biz.sitesAllocated || "N/A"}</span>
-                      </p>
+                {businesses.length === 0 ? (
+                  <div className="py-8 flex flex-col items-center justify-center text-center">
+                    <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                      <FiBriefcase className="text-gray-300" size={16} />
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                        (biz.status || "").toLowerCase() === "active" || (biz.status || "").toLowerCase() === "operational"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                          : "bg-gray-100 text-gray-500 border-gray-200"
-                      }`}>
-                        {biz.status || "N/A"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => confirmDeleteBiz(biz)}
-                        className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
-                        title="Suspend Business"
-                      >
-                        <FiTrash2 size={14} />
-                      </button>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-500">No partner businesses yet</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Register your first entity to see it here</p>
                   </div>
-                ))}
+                ) : (
+                  businesses.map((biz) => (
+                    <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
+                      <div>
+                        <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
+                        <p className="text-[10px] text-gray-450 mt-1">
+                          Rep: {biz.contact || "N/A"} • {biz.email || "N/A"}
+                        </p>
+                        <p className="text-[10px] text-gray-500 font-bold mt-1.5">
+                          Sites: <span className="text-[#D12031]">{biz.sitesAllocated || "N/A"}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                          (biz.status || "").toLowerCase() === "active" || (biz.status || "").toLowerCase() === "operational"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-gray-100 text-gray-500 border-gray-200"
+                        }`}>
+                          {biz.status || "N/A"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => confirmDeleteBiz(biz)}
+                          className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
+                          title="Suspend Business"
+                        >
+                          <FiTrash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -626,12 +705,17 @@ export default function AdministrationSettingsPage() {
           </div>
 
           <div className="space-y-4">
-            {[
-              { role: "Customer", desc: "Can submit new facility work requests", enabled: true },
-              { role: "Customer", desc: "Can delete/modify pending requests", enabled: true },
-              { role: "Technician", desc: "Can transition jobs to Completed status", enabled: true },
-              { role: "Technician", desc: "Can file notices and trigger alarms", enabled: true },
-              { role: "Partner Business", desc: "Can register new sub-users without approval", enabled: false },
+            {platformSettings ? [
+              { key: "customerCanSubmitRequests", role: "Customer", desc: "Can submit new facility work requests", enabled: platformSettings.customerCanSubmitRequests },
+              { key: "customerCanDeleteRequests", role: "Customer", desc: "Can delete/modify pending requests", enabled: platformSettings.customerCanDeleteRequests },
+              { key: "customerRequiresApproval", role: "Customer", desc: "Requires admin approval for new customer signup", enabled: platformSettings.customerRequiresApproval },
+              { key: "techCanReassignJobs", role: "Technician", desc: "Can re-assign jobs to other technicians", enabled: platformSettings.techCanReassignJobs },
+              { key: "techCanCloseWithoutProof", role: "Technician", desc: "Can close jobs without uploading photos/proof", enabled: platformSettings.techCanCloseWithoutProof },
+              { key: "techCanSeeCustomerPhone", role: "Technician", desc: "Can see customer phone numbers", enabled: platformSettings.techCanSeeCustomerPhone },
+              { key: "adminCanCreateDepts", role: "Admin", desc: "Can create new Departments/Sites", enabled: platformSettings.adminCanCreateDepts },
+              { key: "adminCanDeleteUsers", role: "Admin", desc: "Can delete Users", enabled: platformSettings.adminCanDeleteUsers },
+              { key: "systemEmailNotifications", role: "Global System", desc: "Enable System-wide Email Notifications", enabled: platformSettings.systemEmailNotifications },
+              { key: "systemMaintenanceMode", role: "Global System", desc: "Maintenance Mode", enabled: platformSettings.systemMaintenanceMode },
             ].map((p, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 border border-gray-150 rounded-xl">
                 <div>
@@ -647,6 +731,7 @@ export default function AdministrationSettingsPage() {
                     {p.enabled ? "Active" : "Disabled"}
                   </span>
                   <div
+                    onClick={() => handleTogglePermission(p.key, p.enabled)}
                     className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${p.enabled ? "bg-emerald-500" : "bg-gray-300"
                       }`}
                   >
@@ -657,7 +742,9 @@ export default function AdministrationSettingsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="py-4 text-center text-gray-500 text-xs animate-pulse">Loading permissions registry...</div>
+            )}
           </div>
         </div>
 

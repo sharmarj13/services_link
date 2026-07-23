@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiMail, FiLogIn } from "react-icons/fi";
@@ -20,14 +21,45 @@ export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    async function checkExistingAuth() {
+      try {
+        const res = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const meData = await res.json();
+          const userObj = meData.user || meData.data?.user || meData;
+          const isAdmin =
+            userObj?.isAdmin === true ||
+            userObj?.isSuperAdmin === true ||
+            userObj?.role === "admin" ||
+            userObj?.role === "super_admin" ||
+            userObj?.globalRole === "admin" ||
+            userObj?.globalRole === "super_admin" ||
+            userObj?.siteUser?.role === "admin";
+
+          if (isAdmin) {
+            router.replace("/admin/overview");
+          }
+        }
+      } catch (err) {
+        // User is not logged in, stay on login page
+      }
+    }
+    checkExistingAuth();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     try {
       // 1. Log in via backend
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -37,29 +69,40 @@ export default function AdminLoginPage() {
       if (!res.ok) {
         const data = await res.json();
         setError(data.message || "Invalid email address or password. Please try again.");
+        setIsLoading(false);
         return;
       }
 
       // 2. Verify admin role
-      const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const meRes = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
         credentials: "include",
       });
 
       if (!meRes.ok) {
         setError("Failed to verify user profile.");
+        setIsLoading(false);
         return;
       }
 
       const meData = await meRes.json();
-      const role = (meData.data?.user || meData.user)?.siteUser?.role || (meData.data?.user || meData.user)?.globalRole;
+      const userObj = meData.user || meData.data?.user || meData;
+      const isAdmin =
+        userObj?.isAdmin === true ||
+        userObj?.isSuperAdmin === true ||
+        userObj?.role === "admin" ||
+        userObj?.role === "super_admin" ||
+        userObj?.globalRole === "admin" ||
+        userObj?.globalRole === "super_admin" ||
+        userObj?.siteUser?.role === "admin";
 
-      if (role !== "admin" && role !== "super_admin") {
+      if (!isAdmin) {
         // If they are not an admin, we must log them out immediately
-        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        await apiFetch(`${API_BASE_URL}/api/auth/logout`, {
           method: "POST",
           credentials: "include",
         });
         setError("Unauthorized: Admin access required.");
+        setIsLoading(false);
         return;
       }
 
@@ -67,7 +110,10 @@ export default function AdminLoginPage() {
       router.push("/admin/overview");
     } catch (err) {
       console.error("Login error:", err);
-      setError("An unexpected error occurred. Make sure the server is running.");
+      setError(
+        (err as any).message || "An unexpected error occurred. Make sure the server is running."
+      );
+      setIsLoading(false);
     }
   };
 
@@ -119,8 +165,8 @@ export default function AdminLoginPage() {
           </Link>
         </div>
 
-        <PrimaryButton id="btn-admin-sign-in">
-          <FiLogIn size={18} /> Sign IN
+        <PrimaryButton id="btn-admin-sign-in" isLoading={isLoading}>
+          {!isLoading && <FiLogIn size={18} />} Sign IN
         </PrimaryButton>
       </form>
     </AuthLayout>

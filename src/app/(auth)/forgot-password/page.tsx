@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation"; // Next.js router
@@ -25,7 +26,7 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      await apiFetch(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),

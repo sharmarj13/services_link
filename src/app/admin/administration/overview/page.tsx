@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/apiFetch";
 import React, { useEffect, useState } from "react";
 import { FiUsers, FiShield, FiActivity } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
@@ -12,7 +13,7 @@ export default function AdministrationOverviewPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/users/stats`, { credentials: "include" });
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/users/stats`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setStats(data);
