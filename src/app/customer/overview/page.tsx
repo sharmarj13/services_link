@@ -106,7 +106,15 @@ export default function CustomerOverviewPage() {
 
       if (requestsRes.ok) {
         const requestsObj = await requestsRes.json();
-        const list = requestsObj.data || [];
+        const list = Array.isArray(requestsObj)
+          ? requestsObj
+          : (Array.isArray(requestsObj?.data?.data)
+              ? requestsObj.data.data
+              : (Array.isArray(requestsObj?.data)
+                  ? requestsObj.data
+                  : (Array.isArray(requestsObj?.workRequests)
+                      ? requestsObj.workRequests
+                      : [])));
         
         const mapped = list.map((r: Record<string, unknown>) => {
           const priority = (r.priority as string) || "";

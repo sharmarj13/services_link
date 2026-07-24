@@ -74,9 +74,26 @@ export default function AdministrationSitesPage() {
     }
   };
 
+  const [usersList, setUsersList] = useState<any[]>([]);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await apiFetch(`/api/admin/users`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setUsersList(data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    }
+  };
+
   useEffect(() => {
     fetchSites();
     fetchDepartments();
+    fetchUsers();
   }, []);
 
   // Modal States
@@ -128,43 +145,84 @@ export default function AdministrationSitesPage() {
   const archivedDepartments = departments.filter(d => d.isActive === false);
   const displayedDepartments = activeDeptTab === "active" ? activeDepartments : archivedDepartments;
 
+  const technicianUsers = usersList.filter(u => {
+    const role = (u.role || "").toLowerCase();
+    return role === "technician" || role === "tech";
+  });
+
+  const regularUsers = usersList.filter(u => {
+    const role = (u.role || "").toLowerCase();
+    return role === "customer" || role === "client" || role === "user";
+  });
+
   const totalPages = Math.ceil(filteredSites.length / itemsPerPage);
   const activePage = Math.min(currentPage, totalPages || 1);
   const displayedSites = filteredSites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
 
-  const handleRestoreDepartment = async (dept: any) => {
+  // Restore Confirmation States
+  const [isRestoreSiteModalOpen, setIsRestoreSiteModalOpen] = useState(false);
+  const [activeSiteToRestore, setActiveSiteToRestore] = useState<SiteItem | null>(null);
+  const [isSavingRestoreSite, setIsSavingRestoreSite] = useState(false);
+
+  const [isRestoreDeptModalOpen, setIsRestoreDeptModalOpen] = useState(false);
+  const [activeDeptToRestore, setActiveDeptToRestore] = useState<any>(null);
+  const [isSavingRestoreDept, setIsSavingRestoreDept] = useState(false);
+
+  const confirmRestoreDepartment = (dept: any) => {
+    setActiveDeptToRestore(dept);
+    setIsRestoreDeptModalOpen(true);
+  };
+
+  const handleRestoreDeptConfirm = async () => {
+    if (!activeDeptToRestore) return;
+    setIsSavingRestoreDept(true);
     try {
-      const res = await apiFetch(`/api/admin/departments/${dept.id}`, {
+      const res = await apiFetch(`/api/admin/departments/${activeDeptToRestore.id}`, {
         method: "PUT",
         body: JSON.stringify({ isActive: true })
       });
       if (res.ok) {
         showToast("Department restored successfully!");
         fetchDepartments();
+        setIsRestoreDeptModalOpen(false);
+        setActiveDeptToRestore(null);
       } else {
         showToast("Failed to restore department", "error");
       }
     } catch (err) {
       console.error(err);
       showToast("Error restoring department", "error");
+    } finally {
+      setIsSavingRestoreDept(false);
     }
   };
 
-  const handleRestoreSite = async (site: SiteItem) => {
+  const confirmRestoreSite = (site: SiteItem) => {
+    setActiveSiteToRestore(site);
+    setIsRestoreSiteModalOpen(true);
+  };
+
+  const handleRestoreSiteConfirm = async () => {
+    if (!activeSiteToRestore) return;
+    setIsSavingRestoreSite(true);
     try {
-      const res = await apiFetch(`/api/admin/sites/${site.id}`, {
+      const res = await apiFetch(`/api/admin/sites/${activeSiteToRestore.id}`, {
         method: "PUT",
         body: JSON.stringify({ status: "Operational" })
       });
       if (res.ok) {
         showToast("Facility site restored successfully!");
         fetchSites();
+        setIsRestoreSiteModalOpen(false);
+        setActiveSiteToRestore(null);
       } else {
         showToast("Failed to restore site.", "error");
       }
     } catch (err) {
       console.error(err);
       showToast("Error restoring site.", "error");
+    } finally {
+      setIsSavingRestoreSite(false);
     }
   };
 
@@ -313,6 +371,9 @@ export default function AdministrationSitesPage() {
           name: formName,
           address: formAddress,
           status: formStatus,
+          department: formDepartment,
+          technician: formTechnician,
+          user: formUser,
           siteType: "facility",
         }),
       });
@@ -683,7 +744,7 @@ export default function AdministrationSitesPage() {
                         <div className="flex justify-end items-center gap-1.5">
                           {activeTab === "archived" ? (
                             <button
-                              onClick={() => handleRestoreSite(site)}
+                              onClick={() => confirmRestoreSite(site)}
                               className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-100 cursor-pointer"
                               title="Restore Facility Site"
                             >
@@ -774,7 +835,7 @@ export default function AdministrationSitesPage() {
               </h4>
               <form onSubmit={handleAddDepartment} className="space-y-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-700 mb-1">Department Name *</label>
+                  <label className="block text-[10px] font-bold text-gray-700 mb-1">Department Name <span className="text-[#D12031]">*</span></label>
                   <input 
                     type="text" required placeholder="e.g. Maintenance" value={deptFormName} onChange={e => setDeptFormName(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-xs text-gray-800 outline-none focus:border-[#D12031]"
@@ -870,7 +931,7 @@ export default function AdministrationSitesPage() {
                           <td className="py-3 px-5 text-right">
                             {activeDeptTab === "archived" ? (
                               <button
-                                onClick={() => handleRestoreDepartment(dept)}
+                                onClick={() => confirmRestoreDepartment(dept)}
                                 className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-colors border border-emerald-100 cursor-pointer"
                                 title="Restore Department"
                               >
@@ -911,7 +972,7 @@ export default function AdministrationSitesPage() {
 
             <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Site Name *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Site Name <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -923,7 +984,7 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Location Address *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Location Address <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -935,15 +996,14 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Department</label>
                 <select
-                  required
                   value={formDepartment}
                   onChange={(e) => setFormDepartment(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                 >
-                  <option value="" disabled={departments.length === 0}>
-                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department --"}
+                  <option value="">
+                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department (Optional) --"}
                   </option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.name}>{dept.name}</option>
@@ -953,26 +1013,44 @@ export default function AdministrationSitesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Karl Smith"
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Assigned</label>
+                  <select
                     value={formTechnician}
                     onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {technicianUsers.length === 0 ? "-- No technicians available --" : "-- Select Technician (Optional) --"}
+                    </option>
+                    {formTechnician && !technicianUsers.some(u => u.name === formTechnician || u.email === formTechnician) && (
+                      <option value={formTechnician}>{formTechnician}</option>
+                    )}
+                    {technicianUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Maurice Maldonado"
+                  <label className="block text-[11px] font-bold text-gray-700">User Assigned</label>
+                  <select
                     value={formUser}
                     onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {regularUsers.length === 0 ? "-- No users available --" : "-- Select User (Optional) --"}
+                    </option>
+                    {formUser && !regularUsers.some(u => u.name === formUser || u.email === formUser) && (
+                      <option value={formUser}>{formUser}</option>
+                    )}
+                    {regularUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email} {u.role ? `(${u.role})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1024,7 +1102,7 @@ export default function AdministrationSitesPage() {
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Site Name *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Site Name <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -1036,7 +1114,7 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Location Address *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Location Address <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -1048,15 +1126,14 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Department</label>
                 <select
-                  required
                   value={formDepartment}
                   onChange={(e) => setFormDepartment(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                 >
-                  <option value="" disabled={departments.length === 0}>
-                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department --"}
+                  <option value="">
+                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department (Optional) --"}
                   </option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.name}>{dept.name}</option>
@@ -1066,26 +1143,44 @@ export default function AdministrationSitesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Karl Smith"
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Assigned</label>
+                  <select
                     value={formTechnician}
                     onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {technicianUsers.length === 0 ? "-- No technicians available --" : "-- Select Technician (Optional) --"}
+                    </option>
+                    {formTechnician && !technicianUsers.some(u => u.name === formTechnician || u.email === formTechnician) && (
+                      <option value={formTechnician}>{formTechnician}</option>
+                    )}
+                    {technicianUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Maurice Maldonado"
+                  <label className="block text-[11px] font-bold text-gray-700">User Assigned</label>
+                  <select
                     value={formUser}
                     onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {regularUsers.length === 0 ? "-- No users available --" : "-- Select User (Optional) --"}
+                    </option>
+                    {formUser && !regularUsers.some(u => u.name === formUser || u.email === formUser) && (
+                      <option value={formUser}>{formUser}</option>
+                    )}
+                    {regularUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email} {u.role ? `(${u.role})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1270,6 +1365,76 @@ export default function AdministrationSitesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 RESTORE SITE MODAL */}
+      {isRestoreSiteModalOpen && activeSiteToRestore && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4 text-emerald-600">
+              <FiRotateCcw size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Restore Facility Site?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to restore facility site &quot;{activeSiteToRestore.name}&quot; back to Operational status?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsRestoreSiteModalOpen(false)}
+                disabled={isSavingRestoreSite}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestoreSiteConfirm}
+                disabled={isSavingRestoreSite}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingRestoreSite ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Restoring...</>
+                ) : "Restore Site"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 RESTORE DEPARTMENT MODAL */}
+      {isRestoreDeptModalOpen && activeDeptToRestore && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4 text-emerald-600">
+              <FiRotateCcw size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Restore Department?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to restore department &quot;{activeDeptToRestore.name}&quot; back to Active status?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsRestoreDeptModalOpen(false)}
+                disabled={isSavingRestoreDept}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestoreDeptConfirm}
+                disabled={isSavingRestoreDept}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingRestoreDept ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Restoring...</>
+                ) : "Restore Dept"}
+              </button>
+            </div>
           </div>
         </div>
       )}

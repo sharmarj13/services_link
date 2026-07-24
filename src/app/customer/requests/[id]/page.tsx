@@ -18,6 +18,7 @@ import {
   FiCpu,
   FiPhoneCall,
   FiMail,
+  FiMessageSquare,
   FiPlus,
   FiTrash2,
   FiEdit2,
@@ -341,10 +342,10 @@ export default function CustomerRequestDetailPage() {
         dueDate: data.dueDate ? (data.dueDate as string) : null,
         poNumber: data.poNumber || "N/A",
         assetId: data.assetId || "N/A",
-        scopeOfWork: data.scopeOfWork || data.description || "N/A",
-        contactName: data.assignedEmployee ? `${data.assignedEmployee.firstName} ${data.assignedEmployee.lastName}` : "Unassigned",
-        contactRole: data.assignedEmployee?.role || "Technician",
-        contactInitials: data.assignedEmployee ? (data.assignedEmployee.firstName[0] + data.assignedEmployee.lastName[0]).toUpperCase() : "UT",
+        scopeOfWork: (data.scopeOfWork && data.scopeOfWork.trim() && data.scopeOfWork.trim() !== data.description?.trim()) ? data.scopeOfWork.trim() : "Not specified",
+        contactName: data.assignedEmployee ? `${data.assignedEmployee.firstName} ${data.assignedEmployee.lastName}` : "No Technician Assigned",
+        contactRole: data.assignedEmployee ? (data.assignedEmployee.role || "Technician") : "Awaiting Dispatch",
+        contactInitials: data.assignedEmployee ? (data.assignedEmployee.firstName[0] + data.assignedEmployee.lastName[0]).toUpperCase() : "N/A",
         attachments: data.referencePhotoUrls || [],
         workType: data.workType || "N/A", // Removed static 'Routine'
         workType2: data.workType2 || "N/A", // Removed static 'Recyclable'
@@ -774,13 +775,19 @@ export default function CustomerRequestDetailPage() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <button className="w-full py-3 bg-[#D12031] text-white rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm">
+                  <button 
+                    disabled={job.contactName === "No Technician Assigned"}
+                    className="w-full py-3 bg-[#D12031] text-white rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <FiPhoneCall size={15} />
                     Call
                   </button>
-                  <button className="w-full py-3 border-2 border-[#D12031] text-[#D12031] rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-red-50 transition-colors cursor-pointer bg-white">
-                    <FiMail size={15} />
-                    Email Contact
+                  <button 
+                    onClick={() => router.push(`/customer/messages?requestId=${job.id}`)}
+                    className="w-full py-3 border-2 border-[#D12031] text-[#D12031] rounded-xl font-bold text-[13px] flex justify-center items-center gap-2 hover:bg-red-50 transition-colors cursor-pointer bg-white"
+                  >
+                    <FiMessageSquare size={15} />
+                    Message
                   </button>
                 </div>
               </div>

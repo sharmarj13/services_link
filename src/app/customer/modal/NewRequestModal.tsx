@@ -179,7 +179,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
           category: category.toLowerCase(),
           priority: priority.toLowerCase(),
           dueDate: dueDate ? new Date(dueDate) : undefined,
-          scopeOfWork: scopeOfWork.trim() || detailedDesc.trim(),
+          scopeOfWork: scopeOfWork.trim(),
           referencePhotoUrls: uploadedPhotos.length > 0 ? uploadedPhotos : null,
           location: resolvedLocation,
           department: department !== "None" ? department : null,

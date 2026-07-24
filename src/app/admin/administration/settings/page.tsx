@@ -59,7 +59,18 @@ export default function AdministrationSettingsPage() {
       const res = await apiFetch(`/api/admin/users`);
       if (res.ok) {
         const data = await res.json();
-        setAdmins(data);
+        const rawList = Array.isArray(data) ? data : (data.users || data.data || []);
+        const formatted = rawList.map((u: any) => ({
+          id: u.id,
+          name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'N/A',
+          email: u.email || 'N/A',
+          phone: u.phone || 'N/A',
+          department: u.department || 'N/A',
+          siteAccess: u.siteAccess || u.siteName || (u.siteId ? 'Assigned' : 'All Sites'),
+          role: u.role || 'customer',
+          status: 'Active'
+        }));
+        setAdmins(formatted);
       }
     } catch (err) {
       console.error("Failed to fetch users:", err);
@@ -109,11 +120,11 @@ export default function AdministrationSettingsPage() {
 
   const fetchSites = async () => {
     try {
-      const res = await apiFetch(`/api/admin/sites?type=business`);
+      const res = await apiFetch(`/api/admin/sites`);
       if (res.ok) {
         const data = await res.json();
-        // Backend returns { status: true, data: [...] }
-        setBusinesses(Array.isArray(data) ? data : (data.data || []));
+        const siteList = Array.isArray(data) ? data : (data.data || []);
+        setBusinesses(siteList);
       }
     } catch (err) {
       console.error("Failed to fetch sites:", err);
@@ -205,20 +216,43 @@ export default function AdministrationSettingsPage() {
       return;
     }
     setIsSubmittingUser(true);
+    const nameParts = adminName.trim().split(" ");
+    const firstName = nameParts[0] || adminName;
+    const lastName = nameParts.slice(1).join(" ") || "User";
+
+    let backendRole = "customer";
+    const rLower = adminRole.toLowerCase();
+    if (rLower.includes("admin")) backendRole = "admin";
+    else if (rLower.includes("tech")) backendRole = "tech";
+    else if (rLower.includes("customer")) backendRole = "customer";
+
+    const payload: any = {
+      name: adminName,
+      firstName,
+      lastName,
+      email: adminEmail,
+      password: adminPass,
+      phone: adminPhone,
+      department: adminDept,
+      role: backendRole,
+      sendEmail: false,
+    };
+
+    if (adminSites && adminSites !== "All Sites") {
+      payload.siteId = adminSites;
+      payload.siteIds = [adminSites];
+      payload.siteAccess = adminSites;
+    } else {
+      payload.siteAccess = "All Sites";
+    }
+
     try {
       const res = await apiFetch(`/api/admin/users`, {
         method: "POST",
-        body: JSON.stringify({
-          name: adminName,
-          email: adminEmail,
-          password: adminPass,
-          phone: adminPhone,
-          department: adminDept,
-          role: adminRole,
-          siteAccess: adminSites
-        })
+        body: JSON.stringify(payload)
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.status !== false) {
         await fetchUsers();
         setAdminName("");
         setAdminEmail("");
@@ -229,12 +263,12 @@ export default function AdministrationSettingsPage() {
         setAdminSites("All Sites");
         showToast("User account created successfully!");
       } else {
-        const err = await res.json();
-        showToast((err as any).message || "Failed to create user.", "error");
+        const errorMessage = data.message || data.error || (data.data && data.data.message) || "Failed to create user.";
+        showToast(errorMessage, "error");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("Error creating user", "error");
+      showToast(err.message || "Error creating user", "error");
     } finally {
       setIsSubmittingUser(false);
     }
@@ -419,27 +453,29 @@ export default function AdministrationSettingsPage() {
               </div>
               <p className="text-[11px] text-gray-400 font-semibold mb-5">Create accounts to help manage operations and dispatching tasks.</p>
 
-              <form onSubmit={handleAddAdminSubmit} className="space-y-4">
+              <form onSubmit={handleAddAdminSubmit} className="space-y-4" autoComplete="off">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Full Name *</label>
+                    <label className="block text-[11px] font-bold text-gray-700">Full Name <span className="text-[#D12031]">*</span></label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. Robert Smith"
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
+                      autoComplete="off"
                       className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Email Address *</label>
+                    <label className="block text-[11px] font-bold text-gray-700">Email Address <span className="text-[#D12031]">*</span></label>
                     <input
                       type="email"
                       required
                       placeholder="e.g. robert@servicelink.com"
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
+                      autoComplete="new-password"
                       className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                     />
                   </div>
@@ -453,6 +489,7 @@ export default function AdministrationSettingsPage() {
                       placeholder="e.g. +1 (555) 019-2834"
                       value={adminPhone}
                       onChange={(e) => setAdminPhone(e.target.value)}
+                      autoComplete="off"
                       className="w-full bg-white border border-gray-300 rounded-xl px-4.5 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
                     />
                   </div>
@@ -467,7 +504,7 @@ export default function AdministrationSettingsPage() {
                         <option value="" disabled>-- No departments available --</option>
                       ) : (
                         <>
-                          <option value="" disabled>-- Select Department --</option>
+                          <option value="">-- Select Department (Optional) --</option>
                           {departments.map(dept => (
                             <option key={dept.id} value={dept.name}>{dept.name}</option>
                           ))}
@@ -504,21 +541,22 @@ export default function AdministrationSettingsPage() {
                       ) : (
                         <>
                           <option value="All Sites">All Sites</option>
-                          {businesses.map((biz) => (
-                            <option key={biz.id} value={biz.id}>{biz.businessName}</option>
+                          {businesses.map((biz: any) => (
+                            <option key={biz.id} value={biz.id}>{biz.businessName || biz.name}</option>
                           ))}
                         </>
                       )}
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Password *</label>
+                    <label className="block text-[11px] font-bold text-gray-700">Password <span className="text-[#D12031]">*</span></label>
                     <input
                       type="password"
                       required
                       placeholder="••••••••"
                       value={adminPass}
                       onChange={(e) => setAdminPass(e.target.value)}
+                      autoComplete="new-password"
                       className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-855 outline-none focus:border-[#D12031]"
                     />
                   </div>
@@ -564,18 +602,45 @@ export default function AdministrationSettingsPage() {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="bg-red-50 text-[#D12031] border border-red-100 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                        {adm.role}
+                        {adm.role === "super_admin" ? "SUPER ADMIN" : adm.role === "admin" ? "ADMIN" : adm.role === "tech" ? "TECHNICIAN" : adm.role.toUpperCase()}
                       </span>
-                      {(!['admin', 'super_admin'].includes(adm.role?.toLowerCase() || '') || currentUser?.isSuperAdmin) && (
-                        <button
-                          type="button"
-                          onClick={() => confirmDeleteAdmin(adm)}
-                          className="text-gray-400 hover:text-[#D12031] p-1 rounded-lg hover:bg-gray-50 transition-colors border-none bg-transparent cursor-pointer"
-                          title="Revoke Access"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
-                      )}
+                      {(() => {
+                        const isSelf = adm.id === currentUser?.id || (adm.email && currentUser?.email && adm.email.toLowerCase() === currentUser.email.toLowerCase());
+                        const isTargetSuperAdmin = adm.role?.toLowerCase() === 'super_admin' || adm.role?.toLowerCase() === 'super admin';
+                        const isTargetAdmin = adm.role?.toLowerCase() === 'admin';
+
+                        let isDisableDelete = false;
+                        let disableReason = "Delete User Account";
+
+                        if (isSelf) {
+                          isDisableDelete = true;
+                          disableReason = "You cannot delete your own logged-in account";
+                        } else if (isTargetSuperAdmin) {
+                          isDisableDelete = true;
+                          disableReason = !currentUser?.isSuperAdmin
+                            ? "Admins cannot delete Super Admin accounts"
+                            : "Super Admin accounts cannot be deleted";
+                        } else if (isTargetAdmin && !currentUser?.isSuperAdmin) {
+                          isDisableDelete = true;
+                          disableReason = "Only Super Admin can delete Admin accounts";
+                        }
+
+                        return (
+                          <button
+                            type="button"
+                            disabled={isDisableDelete}
+                            onClick={() => !isDisableDelete && confirmDeleteAdmin(adm)}
+                            className={`p-1 rounded-lg transition-colors border-none bg-transparent ${
+                              isDisableDelete
+                                ? "text-gray-300 opacity-40 cursor-not-allowed"
+                                : "text-[#D12031] hover:bg-red-50 hover:text-[#b91c2c] cursor-pointer"
+                            }`}
+                            title={disableReason}
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -837,9 +902,9 @@ export default function AdministrationSettingsPage() {
               <FiTrash2 size={24} />
             </div>
 
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Revoke Access?</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Delete User Account?</h2>
             <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
-              Are you sure you want to revoke access for &quot;{activeAdminToDelete.name}&quot;? They will no longer be able to log in.
+              Are you sure you want to permanently delete <span className="text-gray-900 font-bold">&quot;{activeAdminToDelete.name}&quot;</span>? This action will permanently remove their access from the platform.
             </p>
 
             <div className="flex gap-3">
@@ -856,8 +921,8 @@ export default function AdministrationSettingsPage() {
                 className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {isSavingDeleteAdmin ? (
-                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Revoking...</>
-                ) : "Revoke"}
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</>
+                ) : "Delete User"}
               </button>
             </div>
           </div>

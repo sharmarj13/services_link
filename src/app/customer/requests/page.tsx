@@ -133,7 +133,15 @@ export default function CustomerRequestsPage() {
       });
       if (response.ok) {
         const obj = await response.json();
-        const list = obj.data || [];
+        const list = Array.isArray(obj)
+          ? obj
+          : (Array.isArray(obj?.data?.data)
+              ? obj.data.data
+              : (Array.isArray(obj?.data)
+                  ? obj.data
+                  : (Array.isArray(obj?.workRequests)
+                      ? obj.workRequests
+                      : [])));
         const mapped = list.map((r: Record<string, unknown>) => ({
           id: r.id as string,
           title: r.title as string,

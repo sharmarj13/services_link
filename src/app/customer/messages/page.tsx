@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import CustomerLayout from "@/components/CustomerLayout";
 import { FiUser, FiAlertCircle } from "react-icons/fi";
 import ChatModal from "@/components/ChatModal";
@@ -41,7 +42,7 @@ interface Conversation {
   messages: Message[];
 }
 
-export default function CustomerMessagesPage() {
+function CustomerMessagesContent() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [convList, setConvList] = useState<Conversation[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -217,11 +218,24 @@ export default function CustomerMessagesPage() {
     }
   };
 
+  const searchParams = useSearchParams();
+  const targetRequestId = searchParams?.get("requestId");
+
   // Initial load
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-open conversation if requestId query param is present
+  useEffect(() => {
+    if (targetRequestId && convList.length > 0) {
+      const match = convList.find((c) => c.id === targetRequestId);
+      if (match) {
+        setActiveConv(match);
+      }
+    }
+  }, [targetRequestId, convList]);
 
   // Sync activeConv changes to keep it in sync with updated list
   useEffect(() => {
@@ -513,5 +527,13 @@ export default function CustomerMessagesPage() {
         }}
       />
     </CustomerLayout>
+  );
+}
+
+export default function CustomerMessagesPageWrapper() {
+  return (
+    <React.Suspense fallback={<div className="p-6 text-center text-gray-500 font-semibold">Loading messages...</div>}>
+      <CustomerMessagesContent />
+    </React.Suspense>
   );
 }

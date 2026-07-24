@@ -18,7 +18,10 @@ import {
   FiArrowLeft,
   FiRotateCcw,
   FiX,
-  FiAlertCircle
+  FiAlertCircle,
+  FiCheckCircle,
+  FiTag,
+  FiPlus,
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
 import { apiFetch } from "@/lib/apiFetch";
@@ -41,10 +44,50 @@ export default function JobDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStarted, setIsStarted] = useState(false);
   const [viewingImages, setViewingImages] = useState<string[] | null>(null);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [resolutionNotes, setResolutionNotes] = useState("");
+  const [completionPhotos, setCompletionPhotos] = useState<string[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isNotifyOpen, setIsNotifyOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [isResolving, setIsResolving] = useState(false);
+  const [isUploadingSidebarPhoto, setIsUploadingSidebarPhoto] = useState(false);
+
+  const handleUploadSidebarPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !job) return;
+    setIsUploadingSidebarPhoto(true);
+    try {
+      const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append("file", files[i]);
+        const res = await apiFetch("/api/upload", { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          newUrls.push(`${API_BASE_URL}${data.url}`);
+        }
+      }
+      if (newUrls.length > 0) {
+        const updatedAfter = [...(job.afterPhotoUrls || []), ...newUrls];
+        const response = await apiFetch(`/api/work-requests/${job.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ afterPhotoUrls: updatedAfter }),
+        });
+        if (response.ok) {
+          toast.success("Photo uploaded successfully!");
+          fetchJobDetails();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upload photo.");
+    } finally {
+      setIsUploadingSidebarPhoto(false);
+    }
+  };
 
   const fetchJobDetails = useCallback(async () => {
     if (!params?.id) return;
@@ -506,17 +549,21 @@ export default function JobDetailPage() {
           {/* Right Column Photos */}
           <div className="lg:w-[320px] shrink-0">
             <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-[15px] font-bold text-gray-900 mb-4">Before Photos</h3>
-              <div className="flex flex-wrap gap-3 mb-8">
-                {beforePhotos.map((src: string, i: number) => (
-                  <div key={i} onClick={() => setViewingImages(beforePhotos)} className="relative w-[76px] h-[76px] rounded-xl overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
-                    <img src={src} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white p-1 truncate text-center">
-                      Before
+              <h3 className="text-[15px] font-bold text-gray-900 mb-3">Before Photos</h3>
+              {beforePhotos.length === 0 ? (
+                <div className="bg-gray-50/70 border border-gray-200/60 rounded-xl p-3.5 text-center mb-6">
+                  <p className="text-[12px] text-gray-400 font-medium">No before photos recorded.</p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3 mb-6">
+                  {beforePhotos.map((src: string, i: number) => (
+                    <div key={i} onClick={() => setViewingImages(beforePhotos)} className="relative w-[76px] h-[76px] rounded-xl overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
+                      <img src={src} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white p-1 truncate text-center">
+                        Before
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {beforePhotos.length > 0 && (
+                  ))}
                   <button onClick={() => setViewingImages(beforePhotos)} className="w-[76px] h-[76px] rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors shadow-sm cursor-pointer">
                     <span className="w-6 h-6 rounded-full bg-white text-[#D12031] border border-red-200 flex items-center justify-center mb-1 text-[14px] shadow-sm">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -527,21 +574,25 @@ export default function JobDetailPage() {
                     </span>
                     <span className="text-[10px] font-bold">View All</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
-              <h3 className="text-[15px] font-bold text-gray-900 mb-4">After Photos</h3>
-              <div className="flex flex-wrap gap-3">
-                {afterPhotos.map((src: string, i: number) => (
-                  <div key={i} onClick={() => setViewingImages(afterPhotos)} className="relative w-[76px] h-[76px] rounded-xl overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
-                    <img src={src} alt="After" className="absolute inset-0 w-full h-full object-cover" />
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white p-1 truncate text-center">
-                      After
+              <h3 className="text-[15px] font-bold text-gray-900 mb-3">After Photos</h3>
+              {afterPhotos.length === 0 ? (
+                <div className="bg-gray-50/70 border border-gray-200/60 rounded-xl p-3.5 text-center">
+                  <p className="text-[12px] text-gray-400 font-medium">No after photos recorded.</p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {afterPhotos.map((src: string, i: number) => (
+                    <div key={i} onClick={() => setViewingImages(afterPhotos)} className="relative w-[76px] h-[76px] rounded-xl overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
+                      <img src={src} alt="After" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white p-1 truncate text-center">
+                        After
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {afterPhotos.length > 0 && (
-                  <button onClick={() => setViewingImages(afterPhotos)} className="w-[76px] h-[76px] rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors shadow-sm cursor-pointer">
+                  ))}
+                  <button onClick={() => setViewingImages(afterPhotos)} className="w-[76px] h-[76px] rounded-xl bg-[#D12031]/10 border border-[#D12031]/30 flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors shadow-sm cursor-pointer">
                     <span className="w-6 h-6 rounded-full bg-white text-[#D12031] border border-red-200 flex items-center justify-center mb-1 text-[14px] shadow-sm">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -551,8 +602,8 @@ export default function JobDetailPage() {
                     </span>
                     <span className="text-[10px] font-bold">View All</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -695,30 +746,72 @@ export default function JobDetailPage() {
                   <span className="text-gray-500 text-[13px] font-medium whitespace-nowrap">Asset ID : </span>
                   <span className="text-[#D12031] font-bold text-[13px] truncate">REQUEST-{job.id.substring(0,4).toUpperCase()}</span>
                 </div>
+
+                <div className="flex items-center gap-2.5">
+                  <FiAlertCircle className="text-gray-500 shrink-0" />
+                  <span className="text-gray-500 text-[13px] font-medium whitespace-nowrap">Priority : </span>
+                  <span className="text-[#D12031] font-bold text-[13px] capitalize">{job.priority || "Medium"}</span>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <FiTag className="text-gray-500 shrink-0" />
+                  <span className="text-gray-500 text-[13px] font-medium whitespace-nowrap">Category : </span>
+                  <span className="text-[#D12031] font-bold text-[13px] capitalize">{job.category || "Cleaning"}</span>
+                </div>
               </div>
             </div>
 
             {/* Scope of Work */}
-            <div className="bg-white border-[1.5px] border-[#D12031] rounded-2xl p-6 shadow-sm">
-              <h3 className="text-[17px] font-bold text-gray-900 mb-4">Scope of Work</h3>
-              <p className="text-[14px] text-gray-800 leading-relaxed font-medium">
-                {job.scopeOfWork || job.description}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h3 className="text-[16px] font-bold text-gray-900 mb-3">Scope of Work</h3>
+              <p className="text-[13.5px] text-gray-600 leading-relaxed font-medium">
+                {(job.scopeOfWork && job.scopeOfWork.trim() && job.scopeOfWork.trim() !== job.description?.trim())
+                  ? job.scopeOfWork.trim()
+                  : "Not specified"}
               </p>
             </div>
+
+            {/* Detailed Description */}
+            {job.description && (
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-[16px] font-bold text-gray-900 mb-3">Detailed Description</h3>
+                <p className="text-[13.5px] text-gray-600 leading-relaxed font-medium">
+                  {job.description}
+                </p>
+              </div>
+            )}
+
+            {/* Additional Notes */}
+            {job.additionalNotes && job.additionalNotes !== "None" && (
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-[16px] font-bold text-gray-900 mb-3">Additional Notes</h3>
+                <p className="text-[13.5px] text-gray-600 leading-relaxed font-medium">
+                  {job.additionalNotes}
+                </p>
+              </div>
+            )}
 
             {/* Action buttons row */}
             <div className="flex flex-col sm:flex-row gap-4 w-full">
               <div className="w-full sm:w-1/2">
-                <button
-                  onClick={handleStartJob}
-                  disabled={isStarted}
-                  className={`w-full py-3.5 rounded-lg text-white font-bold text-[14px] shadow-sm transition-all text-center cursor-pointer ${isStarted
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#D12031] hover:bg-[#a81828]"
-                    }`}
-                >
-                  {isStarted ? "Job in Progress" : "Start Job"}
-                </button>
+                {isStarted || job.status === "in_progress" ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsCompleteModalOpen(true)}
+                    className="w-full py-3.5 rounded-lg text-white font-bold text-[14px] shadow-sm transition-all text-center cursor-pointer bg-[#D12031] hover:bg-[#a81828] flex items-center justify-center gap-2"
+                  >
+                    <FiCheckCircle size={18} />
+                    Complete Work Entry
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartJob}
+                    className="w-full py-3.5 rounded-lg text-white font-bold text-[14px] shadow-sm transition-all text-center cursor-pointer bg-[#D12031] hover:bg-[#a81828]"
+                  >
+                    Start Job
+                  </button>
+                )}
               </div>
 
               <div className="w-full sm:w-1/2 flex gap-3">
@@ -775,45 +868,48 @@ export default function JobDetailPage() {
 
             {/* Attachments Card */}
             <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-[16px] font-bold text-gray-900 mb-5">Attachments</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-[16px] font-bold text-gray-900">Attachments & Proof</h3>
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {referencePhotos.length === 0 ? (
-                  <p className="col-span-2 text-[12px] text-gray-400">No attachments provided.</p>
-                ) : (
-                  referencePhotos.map((src: string, index: number) => (
-                    <div
-                      key={index}
-                      onClick={() => setViewingImages(referencePhotos)}
-                      className="group relative rounded-xl overflow-hidden bg-gray-50 h-[110px] shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                    >
-                      <img
-                        src={src}
-                        alt={`Attachment ${index + 1}`}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm py-1 px-2 text-center text-[10px] text-white truncate">
-                        Attachment #{index + 1}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* Upload Photo Button */}
+                <label className="h-[100px] rounded-xl border-2 border-dashed border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-50 transition-colors cursor-pointer bg-white gap-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadSidebarPhoto}
+                  />
+                  {isUploadingSidebarPhoto ? (
+                    <span className="w-4 h-4 border-2 border-[#D12031] border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <div className="w-6 h-6 rounded-full bg-[#D12031] text-white flex items-center justify-center">
+                        <FiPlus size={14} />
                       </div>
-                    </div>
-                  ))
-                )}
+                      <span className="text-[10px] font-bold">Add Photo</span>
+                    </>
+                  )}
+                </label>
 
-                {referencePhotos.length > 0 && (
-                  <button
+                {referencePhotos.map((src: string, index: number) => (
+                  <div
+                    key={index}
                     onClick={() => setViewingImages(referencePhotos)}
-                    className="h-[110px] rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-[#D12031] hover:bg-red-100 transition-colors shadow-sm cursor-pointer"
+                    className="group relative rounded-xl overflow-hidden bg-gray-50 h-[100px] shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                   >
-                    <span className="w-8 h-8 rounded-full bg-white text-[#D12031] border border-red-200 flex items-center justify-center mb-1 text-[16px] shadow-sm">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                    </span>
-                    <span className="text-[12px] font-bold mt-1">View All</span>
-                  </button>
-                )}
+                    <img
+                      src={src}
+                      alt={`Attachment ${index + 1}`}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm py-1 px-2 text-center text-[9px] text-white truncate">
+                      Attachment #{index + 1}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -845,6 +941,164 @@ export default function JobDetailPage() {
         onClose={() => setIsNotifyOpen(false)}
         onSendBroadcast={handleSendBroadcast}
       />
+
+      {/* Complete Work Entry Modal */}
+      {isCompleteModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col border border-gray-100 my-auto">
+            <div className="bg-[#D12031] px-6 py-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FiCheckCircle size={20} />
+                <h3 className="text-[18px] font-bold">Complete Work Entry</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCompleteModalOpen(false)}
+                className="text-white/80 hover:text-white transition-colors border-none bg-transparent cursor-pointer"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!job) return;
+                if (!resolutionNotes.trim()) {
+                  toast.error("Please enter resolution notes / work description.");
+                  return;
+                }
+                setIsCompleting(true);
+                try {
+                  const res = await apiFetch(`/api/work-requests/${job.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                      status: "completed",
+                      additionalNotes: resolutionNotes.trim(),
+                      afterPhotoUrls: completionPhotos.length > 0 ? completionPhotos : null,
+                    })
+                  });
+                  if (res.ok) {
+                    toast.success("Work entry submitted & job marked as Completed!");
+                    setIsCompleteModalOpen(false);
+                    fetchJobDetails();
+                  } else {
+                    toast.error("Failed to complete job entry.");
+                  }
+                } catch (err) {
+                  console.error(err);
+                  toast.error((err as any).message || "Error submitting work entry.");
+                } finally {
+                  setIsCompleting(false);
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Resolution Notes / Work Performed <span className="text-[#D12031]">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  placeholder="Describe the resolution, parts replaced, and test observations..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-xs text-gray-800 outline-none focus:border-[#D12031] focus:bg-white transition-all font-medium"
+                />
+              </div>
+
+              {/* Attach Proof Photos */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Attach Proof Photos (Optional)
+                </label>
+                <div className="flex flex-wrap gap-2.5 items-center">
+                  <label className="h-16 w-24 rounded-xl border-2 border-dashed border-[#D12031] flex flex-col items-center justify-center text-[#D12031] hover:bg-red-50 transition-colors cursor-pointer bg-white gap-0.5 shrink-0">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0) return;
+                        setIsUploadingPhoto(true);
+                        try {
+                          const uploadedUrls: string[] = [];
+                          for (let i = 0; i < files.length; i++) {
+                            const formData = new FormData();
+                            formData.append("file", files[i]);
+                            const res = await apiFetch("/api/upload", {
+                              method: "POST",
+                              body: formData,
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              uploadedUrls.push(`${API_BASE_URL}${data.url}`);
+                            }
+                          }
+                          if (uploadedUrls.length > 0) {
+                            setCompletionPhotos((prev) => [...prev, ...uploadedUrls]);
+                            toast.success("Photo(s) attached!");
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          toast.error("Failed to upload photo.");
+                        } finally {
+                          setIsUploadingPhoto(false);
+                        }
+                      }}
+                    />
+                    {isUploadingPhoto ? (
+                      <span className="w-4 h-4 border-2 border-[#D12031] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <FiPlus size={16} />
+                        <span className="text-[10px] font-bold">Add Photo</span>
+                      </>
+                    )}
+                  </label>
+
+                  {completionPhotos.map((url, idx) => (
+                    <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-sm shrink-0 group">
+                      <img src={url} alt="Proof" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCompletionPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 w-4 h-4 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer border-none"
+                      >
+                        <FiX size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCompleteModalOpen(false)}
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-xs hover:bg-gray-200 transition-colors border-none cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCompleting}
+                  className="flex-1 py-3 bg-[#D12031] text-white rounded-xl font-bold text-xs hover:bg-[#a81828] transition-colors disabled:opacity-70 flex items-center justify-center gap-2 shadow-sm border-none cursor-pointer"
+                >
+                  {isCompleting ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</>
+                  ) : (
+                    "Submit Work Entry"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Success Toast Notification */}
       {toastMsg && (

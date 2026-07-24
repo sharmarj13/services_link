@@ -237,6 +237,8 @@ export default function AdminRequestDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [techsList, setTechsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchTechs = async () => {
@@ -513,35 +515,41 @@ export default function AdminRequestDetailPage() {
                       )}
                     </select>
                     <button
-                      onClick={() => {
+                      type="button"
+                      disabled={isAssigning}
+                      onClick={async () => {
                         const select = document.getElementById("details-assign-tech-select") as HTMLSelectElement;
-                        const val = select.value;
+                        const val = select?.value;
                         if (val && val !== "Unassigned") {
-                          const assignRequest = async () => {
-                            try {
-                              const res = await apiFetch(`/api/admin/work-requests/${job.id}`, {
-                                method: "PUT",
-                                body: JSON.stringify({ assignedEmployeeId: val, status: "active" })
-                              });
-                              if (res.ok) {
-                                toast.success(`Technician assigned successfully. Status updated to Active.`);
-                                window.location.reload();
-                              } else {
-                                toast.error("Failed to assign technician.");
-                              }
-                            } catch (err) {
-                              console.error(err);
-                              toast.error((err as any).message || "An error occurred while assigning.");
+                          setIsAssigning(true);
+                          try {
+                            const res = await apiFetch(`/api/admin/work-requests/${job.id}`, {
+                              method: "PUT",
+                              body: JSON.stringify({ assignedEmployeeId: val, status: "active" })
+                            });
+                            if (res.ok) {
+                              toast.success(`Technician assigned successfully. Status updated to Active.`);
+                              window.location.reload();
+                            } else {
+                              toast.error("Failed to assign technician.");
                             }
-                          };
-                          assignRequest();
+                          } catch (err) {
+                            console.error(err);
+                            toast.error((err as any).message || "An error occurred while assigning.");
+                          } finally {
+                            setIsAssigning(false);
+                          }
                         } else {
                           toast.error("Please select a technician.");
                         }
                       }}
-                      className="w-full py-2.5 bg-[#D12031] text-white rounded-xl font-bold text-xs hover:bg-[#a81828] transition-colors border-none cursor-pointer"
+                      className="w-full py-2.5 bg-[#D12031] text-white rounded-xl font-bold text-xs hover:bg-[#a81828] transition-colors border-none cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                     >
-                      Assign Work
+                      {isAssigning ? (
+                        <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Assigning Work...</>
+                      ) : (
+                        "Assign Work"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1179,14 +1187,34 @@ export default function AdminRequestDetailPage() {
                   Close
                 </button>
                 <button
-                  onClick={() => {
-                    setShowDeleteModal(false);
-                    router.push("/admin/requests");
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    try {
+                      const res = await apiFetch(`/api/admin/work-requests/${job.id}`, {
+                        method: "DELETE"
+                      });
+                      if (res.ok) {
+                        toast.success("Work request deleted successfully.");
+                        setShowDeleteModal(false);
+                        router.push("/admin/requests");
+                      } else {
+                        toast.error("Failed to delete request.");
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      toast.error((err as any).message || "An error occurred while deleting.");
+                    } finally {
+                      setIsDeleting(false);
+                    }
                   }}
-                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20"
+                  className="flex-1 py-3.5 bg-[#D12031] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#a81828] transition-colors cursor-pointer border-none shadow-sm shadow-red-500/20 disabled:opacity-70"
                 >
-                  <FiTrash2 size={17} />
-                  Delete
+                  {isDeleting ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</>
+                  ) : (
+                    <><FiTrash2 size={17} />Delete</>
+                  )}
                 </button>
               </div>
             </div>
