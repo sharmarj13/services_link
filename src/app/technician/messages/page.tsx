@@ -124,6 +124,7 @@ export default function MessagesPage() {
           senderName: nameForInitials,
           initials: nameForInitials.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase() || "ST",
           isNotice: msg.content?.includes("NOTICE & NOTIFY APPLIED") || false,
+          isRead: msg.isRead || false,
         };
 
         if (!conversationsMap[key]) {
@@ -210,39 +211,46 @@ export default function MessagesPage() {
     }
   }, [convList, activeConv]);
 
-  // Sync activeConv changes to keep it in sync with updated list
+  // Sync activeConv changes and auto-mark incoming messages as read if chat is currently open
   useEffect(() => {
     if (activeConv) {
       const current = convList.find((c) => c.id === activeConv.id);
-      if (current && current.messages.length !== activeConv.messages.length) {
+      if (current) {
         setActiveConv(current);
+        const hasUnreadIncoming = current.messages.some((m: any) => m.sender === "us" && !m.isRead);
+        if (hasUnreadIncoming) {
+          apiFetch(`/api/conversations/${current.id}/read`, { method: "POST" }).catch(console.error);
+        }
       }
     }
-  }, [convList, activeConv]);
+  }, [convList]);
 
   const openConversation = (conv: any) => {
-    setActiveConv(conv);
+    // Only mark incoming messages (sent by the other party) as read locally
+    const updatedMessages = conv.messages.map((m: any) =>
+      m.sender !== "them" ? { ...m, isRead: true } : m
+    );
+    const updatedConv = { ...conv, messages: updatedMessages, badge: null };
+    setActiveConv(updatedConv);
     
-    if (conv.badge === "New") {
-      let unreadCountToDecrement = 0;
-      
-      // Mark all unread messages from others as read
-      conv.messages.forEach((msg: any) => {
-        if (!msg.isMine && !msg.isRead && msg.id) {
-          unreadCountToDecrement++;
-          apiFetch(`/api/messages/${msg.id}/read`, { method: "POST" })
-            .catch(console.error);
-        }
-      });
-      
-      // Optimistically clear the badge in the list
-      setConvList((prev) => 
-        prev.map((c) => (c.id === conv.id ? { ...c, badge: null } : c))
-      );
-      
-      // Notify layout to update the badge count
-      window.dispatchEvent(new Event("messagesRead"));
+    // Batch mark conversation messages as read in database
+    if (conv.id) {
+      apiFetch(`/api/conversations/${conv.id}/read`, { method: "POST" }).catch(console.error);
     }
+    
+    // Also mark individual incoming messages as fallback
+    conv.messages.forEach((msg: any) => {
+      if (msg.sender !== "them" && !msg.isRead && msg.id) {
+        apiFetch(`/api/messages/${msg.id}/read`, { method: "POST" }).catch(console.error);
+      }
+    });
+    
+    // Optimistically clear the badge in the list
+    setConvList((prev) => 
+      prev.map((c) => (c.id === conv.id ? { ...c, messages: updatedMessages, badge: null } : c))
+    );
+    
+    window.dispatchEvent(new Event("messagesRead"));
   };
 
   // WebSocket Connection
@@ -464,6 +472,7 @@ export default function MessagesPage() {
           initials: m.initials,
           isCurrentUser: m.sender === "them",
           isNotice: m.isNotice,
+          isRead: m.isRead,
         })) : []}
         onSendMessage={handleSendMessage}
       />

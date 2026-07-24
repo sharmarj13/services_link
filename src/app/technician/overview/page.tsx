@@ -531,10 +531,10 @@ export default function App() {
           {/* ⚡ MY ACTIVE JOB PANEL */}
           <section
             id="card-active-job"
-            className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs mb-8"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xs mb-8 relative z-10"
           >
             {/* Header Ribbon bar */}
-            <div className="bg-[#D12031] px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white">
+            <div className="bg-[#D12031] px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white rounded-t-2xl">
               <div>
                 <h3 className="text-[15px] font-bold tracking-wide">
                   My Active Job
@@ -543,13 +543,32 @@ export default function App() {
                   In-Progress work requests assigned to you
                 </p>
               </div>
-              <button
-                id="btn-active-notify"
-                onClick={() => setIsNotifyOpen(true)}
-                className="self-start sm:self-center px-5 py-2.5 bg-white text-[#D12031] hover:bg-red-50 font-bold text-xs rounded-lg transition-colors shadow-sm cursor-pointer"
-              >
-                Notice &amp; Notify
-              </button>
+              <div className="relative group self-start sm:self-center">
+                <button
+                  id="btn-active-notify"
+                  disabled={activeJobs.length === 0}
+                  onClick={() => {
+                    if (activeJobs.length === 0) return;
+                    if (!activeJobId && activeJobs.length > 0) {
+                      setActiveJobId(activeJobs[0].id);
+                    }
+                    setIsNotifyOpen(true);
+                  }}
+                  className={`px-5 py-2.5 font-bold text-xs rounded-lg transition-all shadow-sm ${
+                    activeJobs.length === 0
+                      ? "bg-white/70 text-gray-400 cursor-not-allowed opacity-80"
+                      : "bg-white text-[#D12031] hover:bg-red-50 cursor-pointer"
+                  }`}
+                >
+                  Notice & Notify
+                </button>
+                {activeJobs.length === 0 && (
+                  <div className="absolute right-0 top-full mt-2.5 hidden group-hover:flex items-center gap-2 bg-slate-900 text-white text-[11px] font-semibold py-2 px-3.5 rounded-xl shadow-2xl whitespace-nowrap z-[100] border border-white/10">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <span>Notice & Notify requires an active in-progress job</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Progress block */}

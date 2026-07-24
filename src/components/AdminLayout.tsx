@@ -221,14 +221,26 @@ export default function AdminLayout({
               key={item.name}
               href={item.path}
               onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-6 py-3.5 text-sm font-semibold text-white/90 border-b border-white/15 transition-colors select-none ${
+              className={`flex items-center justify-between px-6 py-3.5 text-sm font-semibold text-white/90 border-b border-white/15 transition-colors select-none ${
                 isActive ? "bg-[#C7283A]" : "hover:bg-white/8"
               }`}
             >
-              <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-85"}`}>
-                {item.icon}
-              </span>
-              <span>{item.name}</span>
+              <div className="flex items-center gap-3">
+                <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-85"}`}>
+                  {item.icon}
+                </span>
+                <span>{item.name}</span>
+              </div>
+              {item.name === "Messages" && (
+                <span className="bg-white text-[#D12031] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                  2
+                </span>
+              )}
+              {item.name === "Notification" && (
+                <span className="bg-[#ffc107] text-[#856404] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                  3
+                </span>
+              )}
             </Link>
           );
         })}

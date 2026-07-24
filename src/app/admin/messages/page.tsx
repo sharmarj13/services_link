@@ -330,6 +330,7 @@ export default function AdminMessagesPage() {
           initials: m.initials,
           isCurrentUser: m.sender === "admin",
           role: m.sender,
+          isRead: m.isRead,
         })) : []}
         onSendMessage={handleSendMessage}
         isLoading={isMsgsLoading}

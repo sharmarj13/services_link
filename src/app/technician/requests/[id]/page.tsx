@@ -173,6 +173,10 @@ export default function JobDetailPage() {
     evidencePhotoUrls?: string[];
   }) => {
     if (!job?.id) return;
+    if (job.status === "completed") {
+      toast.error("Notice & Notify cannot be broadcasted on completed jobs.");
+      return;
+    }
     try {
       const res = await apiFetch(`/api/work-requests/${job.id}/notices`, {
         method: "POST",
@@ -823,13 +827,28 @@ export default function JobDetailPage() {
                   <span>Message</span>
                 </Link>
 
-                <button
-                  onClick={() => setIsNotifyOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-2 py-3.5 border border-[#D12031] text-[#D12031] bg-white hover:bg-red-50 font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer"
-                >
-                  <FiBell size={16} />
-                  <span>Notice & Notify</span>
-                </button>
+                <div className="relative group flex-1">
+                  <button
+                    disabled={job?.status === "completed"}
+                    onClick={() => {
+                      if (job?.status === "completed") return;
+                      setIsNotifyOpen(true);
+                    }}
+                    className={`w-full flex items-center justify-center gap-2 px-2 py-3.5 border font-bold text-[14px] rounded-lg transition-colors shadow-sm ${
+                      job?.status === "completed"
+                        ? "border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed opacity-80"
+                        : "border-[#D12031] text-[#D12031] bg-white hover:bg-red-50 cursor-pointer"
+                    }`}
+                  >
+                    <FiBell size={16} />
+                    <span>Notice & Notify</span>
+                  </button>
+                  {job?.status === "completed" && (
+                    <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap z-30">
+                      Notice & Notify is disabled for completed jobs
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

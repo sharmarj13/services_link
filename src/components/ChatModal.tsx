@@ -16,6 +16,7 @@ export interface ChatMessage {
   role?: string;
   isNotice?: boolean;
   isPending?: boolean;
+  isRead?: boolean;
 }
 
 interface ChatModalProps {
@@ -109,7 +110,7 @@ export default function ChatModal({
       id: `temp-${Date.now()}`,
       text: text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      senderName: "Sending...",
+      senderName: "You",
       initials: "Me",
       isCurrentUser: true,
       isPending: true
@@ -259,7 +260,6 @@ export default function ChatModal({
                   {msg.senderName && (
                     <span className="text-[9px] text-gray-400 font-black mb-1 px-1 flex items-center gap-1.5">
                       {msg.senderName} {msg.role ? `(${msg.role})` : ""}
-                      {msg.isPending && <span className="w-2.5 h-2.5 border border-gray-300 border-t-gray-500 rounded-full animate-spin"></span>}
                     </span>
                   )}
                   {isNoticeMsg ? (() => {
@@ -333,9 +333,27 @@ export default function ChatModal({
                       {msg.text}
                     </div>
                   )}
-                  <span className="text-[9px] text-gray-400 mt-1 px-1 font-bold">
-                    {msg.time}
-                  </span>
+                  <div className="flex items-center justify-end gap-1.5 mt-1 px-1">
+                    <span className="text-[9px] text-gray-400 font-bold">
+                      {msg.time}
+                    </span>
+                    {msg.isCurrentUser && (
+                      msg.isPending ? (
+                        <span className="text-[9.5px] text-gray-400 font-semibold flex items-center gap-1">
+                          <span className="w-2 h-2 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          Sending...
+                        </span>
+                      ) : msg.isRead ? (
+                        <span className="text-sky-500 font-black text-[12px] leading-none tracking-tighter" title="Read by recipient">
+                          ✓✓
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-black text-[12px] leading-none tracking-tighter" title="Delivered to recipient">
+                          ✓✓
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             );
