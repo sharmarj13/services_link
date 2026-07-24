@@ -9,6 +9,7 @@ import {
   FiUsers,
   FiCheck,
   FiUser,
+  FiRotateCcw,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
@@ -34,7 +35,7 @@ export default function AdministrationSitesPage() {
   const fetchSites = async () => {
     setIsLoading(true);
     try {
-      const res = await apiFetch(`/api/admin/sites`);
+      const res = await apiFetch(`/api/admin/sites?type=facility`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -113,13 +114,59 @@ export default function AdministrationSitesPage() {
   const [toastMsg, setToastMsg] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  // Pagination State
+  // Tab State (Active vs Archived)
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+  const [activeDeptTab, setActiveDeptTab] = useState<"active" | "archived">("active");
 
-  const totalPages = Math.ceil(sites.length / itemsPerPage);
+  const activeSites = sites.filter(s => (s.status || "").toLowerCase() === "active" || (s.status || "").toLowerCase() === "operational" || (s.status || "").toLowerCase() === "maintenance" || (s.status || "").toLowerCase() === "alert state");
+  const archivedSites = sites.filter(s => (s.status || "").toLowerCase() !== "active" && (s.status || "").toLowerCase() !== "operational" && (s.status || "").toLowerCase() !== "maintenance" && (s.status || "").toLowerCase() !== "alert state");
+  const filteredSites = activeTab === "active" ? activeSites : archivedSites;
+
+  const activeDepartments = departments.filter(d => d.isActive !== false);
+  const archivedDepartments = departments.filter(d => d.isActive === false);
+  const displayedDepartments = activeDeptTab === "active" ? activeDepartments : archivedDepartments;
+
+  const totalPages = Math.ceil(filteredSites.length / itemsPerPage);
   const activePage = Math.min(currentPage, totalPages || 1);
-  const displayedSites = sites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
+  const displayedSites = filteredSites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
+
+  const handleRestoreDepartment = async (dept: any) => {
+    try {
+      const res = await apiFetch(`/api/admin/departments/${dept.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isActive: true })
+      });
+      if (res.ok) {
+        showToast("Department restored successfully!");
+        fetchDepartments();
+      } else {
+        showToast("Failed to restore department", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error restoring department", "error");
+    }
+  };
+
+  const handleRestoreSite = async (site: SiteItem) => {
+    try {
+      const res = await apiFetch(`/api/admin/sites/${site.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: "Operational" })
+      });
+      if (res.ok) {
+        showToast("Facility site restored successfully!");
+        fetchSites();
+      } else {
+        showToast("Failed to restore site.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error restoring site.", "error");
+    }
+  };
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
@@ -266,6 +313,7 @@ export default function AdministrationSitesPage() {
           name: formName,
           address: formAddress,
           status: formStatus,
+          siteType: "facility",
         }),
       });
 
@@ -423,8 +471,32 @@ export default function AdministrationSitesPage() {
           </button>
         </div>
 
+        {/* Tab Filters (Active vs Archived) */}
+        <div className="flex items-center gap-2 mb-4 bg-gray-100/80 p-1.5 rounded-2xl w-fit border border-gray-200/70">
+          <button
+            onClick={() => { setActiveTab("active"); setCurrentPage(1); }}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border-none ${
+              activeTab === "active"
+                ? "bg-[#D12031] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+            }`}
+          >
+            Active Sites ({activeSites.length})
+          </button>
+          <button
+            onClick={() => { setActiveTab("archived"); setCurrentPage(1); }}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border-none ${
+              activeTab === "archived"
+                ? "bg-[#D12031] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+            }`}
+          >
+            Archived / Inactive ({archivedSites.length})
+          </button>
+        </div>
+
         {/* Sites list grid */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease] mt-8">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
             {/* Table Header Banner */}
             <div className="bg-[#D12031] px-6 py-5 text-white flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
@@ -434,7 +506,7 @@ export default function AdministrationSitesPage() {
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-xs px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-black self-start sm:self-auto uppercase tracking-wider">
-                Total Sites: {sites.length}
+                Total Sites: {filteredSites.length}
               </div>
             </div>
 
@@ -536,7 +608,7 @@ export default function AdministrationSitesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
-                  {sites.length === 0 ? (
+                  {filteredSites.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-20 text-center">
                         <div className="flex flex-col items-center justify-center space-y-4">
@@ -609,20 +681,33 @@ export default function AdministrationSitesPage() {
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="flex justify-end items-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenEditModal(site)}
-                            className="p-2.5 hover:bg-gray-150 rounded-xl text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
-                            title="Edit Site Details"
-                          >
-                            <FiEdit size={14.5} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenDeleteModal(site)}
-                            className="p-2.5 hover:bg-red-50 rounded-xl text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
-                            title="Delete Site"
-                          >
-                            <FiTrash2 size={14.5} />
-                          </button>
+                          {activeTab === "archived" ? (
+                            <button
+                              onClick={() => handleRestoreSite(site)}
+                              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-100 cursor-pointer"
+                              title="Restore Facility Site"
+                            >
+                              <FiRotateCcw size={13} />
+                              <span>Restore</span>
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditModal(site)}
+                                className="p-2.5 hover:bg-gray-150 rounded-xl text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
+                                title="Edit Site Details"
+                              >
+                                <FiEdit size={14.5} />
+                              </button>
+                              <button
+                                onClick={() => handleOpenDeleteModal(site)}
+                                className="p-2.5 hover:bg-red-50 rounded-xl text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
+                                title="Archive / Delete Site"
+                              >
+                                <FiTrash2 size={14.5} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -673,7 +758,7 @@ export default function AdministrationSitesPage() {
           </div>
 
         {/* --- DEPARTMENTS MANAGEMENT SECTION --- */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-8 animate-[fadeIn_0.3s_ease]">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
           <div className="bg-[#D12031] px-6 py-5 text-white">
             <h3 className="text-[16px] font-bold tracking-wide">Department Management</h3>
             <p className="text-[11.5px] text-white/90 font-medium mt-0.5">
@@ -722,6 +807,31 @@ export default function AdministrationSitesPage() {
             </div>
 
             <div className="md:col-span-2">
+              <div className="flex items-center gap-1.5 bg-gray-100/80 p-1 rounded-xl w-fit border border-gray-200/60 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveDeptTab("active")}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border-none ${
+                    activeDeptTab === "active"
+                      ? "bg-[#D12031] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Active ({activeDepartments.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveDeptTab("archived")}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border-none ${
+                    activeDeptTab === "archived"
+                      ? "bg-[#D12031] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Archived ({archivedDepartments.length})
+                </button>
+              </div>
+
               <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -740,10 +850,12 @@ export default function AdministrationSitesPage() {
                           <td className="py-3 px-5 text-right"><div className="h-4 bg-gray-200 rounded-md w-12 ml-auto" /></td>
                         </tr>
                       ))
-                    ) : departments.length === 0 ? (
-                      <tr><td colSpan={3} className="py-6 text-center text-xs text-gray-500 font-semibold">No departments created yet.</td></tr>
+                    ) : displayedDepartments.length === 0 ? (
+                      <tr><td colSpan={3} className="py-6 text-center text-xs text-gray-500 font-semibold">
+                        {activeDeptTab === "active" ? "No active departments created yet." : "No archived departments."}
+                      </td></tr>
                     ) : (
-                      departments.map(dept => (
+                      displayedDepartments.map(dept => (
                         <tr key={dept.id} className="hover:bg-gray-50 transition-colors">
                           <td className="py-3 px-5">
                             <div className="font-bold text-gray-900 text-[13px]">{dept.name}</div>
@@ -756,12 +868,25 @@ export default function AdministrationSitesPage() {
                             </span>
                           </td>
                           <td className="py-3 px-5 text-right">
-                            <button onClick={() => handleOpenEditDeptModal(dept)} className="p-2 hover:bg-gray-150 rounded-lg text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer" title="Edit Department">
-                              <FiEdit size={14} />
-                            </button>
-                            <button onClick={() => confirmDeleteDept(dept)} className="p-2 hover:bg-red-50 rounded-lg text-[#D12031]/80 hover:text-[#D12031] transition-colors border-none cursor-pointer" title="Delete Department">
-                              <FiTrash2 size={14} />
-                            </button>
+                            {activeDeptTab === "archived" ? (
+                              <button
+                                onClick={() => handleRestoreDepartment(dept)}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-colors border border-emerald-100 cursor-pointer"
+                                title="Restore Department"
+                              >
+                                <FiRotateCcw size={12} />
+                                <span>Restore</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button onClick={() => handleOpenEditDeptModal(dept)} className="p-2 hover:bg-gray-150 rounded-lg text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer" title="Edit Department">
+                                  <FiEdit size={14} />
+                                </button>
+                                <button onClick={() => confirmDeleteDept(dept)} className="p-2 hover:bg-red-50 rounded-lg text-[#D12031]/80 hover:text-[#D12031] transition-colors border-none cursor-pointer" title="Archive / Delete Department">
+                                  <FiTrash2 size={14} />
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))

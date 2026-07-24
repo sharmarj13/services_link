@@ -9,6 +9,7 @@ import {
   FiUserPlus,
   FiSliders,
   FiTrash2,
+  FiRotateCcw,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
@@ -72,6 +73,12 @@ export default function AdministrationSettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
 
+  const [activeBizTab, setActiveBizTab] = useState<"active" | "archived">("active");
+
+  const activeBusinesses = businesses.filter(b => (b.status || "").toLowerCase() === "active" || (b.status || "").toLowerCase() === "operational");
+  const archivedBusinesses = businesses.filter(b => (b.status || "").toLowerCase() !== "active" && (b.status || "").toLowerCase() !== "operational");
+  const displayedBusinesses = activeBizTab === "active" ? activeBusinesses : archivedBusinesses;
+
   const fetchDepartments = async () => {
     try {
       const res = await apiFetch(`/api/admin/departments`);
@@ -102,7 +109,7 @@ export default function AdministrationSettingsPage() {
 
   const fetchSites = async () => {
     try {
-      const res = await apiFetch(`/api/admin/sites`);
+      const res = await apiFetch(`/api/admin/sites?type=business`);
       if (res.ok) {
         const data = await res.json();
         // Backend returns { status: true, data: [...] }
@@ -278,6 +285,7 @@ export default function AdministrationSettingsPage() {
           email: bizEmail,
           logoUrl: bizLogoUrl,
           themeColor: bizThemeColor,
+          siteType: "business",
           status: "active",
         }),
       });
@@ -298,6 +306,26 @@ export default function AdministrationSettingsPage() {
       showToast("Error creating business", "error");
     } finally {
       setIsSubmittingBiz(false);
+    }
+  };
+
+  const toggleBizStatus = async (biz: BusinessAccount) => {
+    const currentStatus = (biz.status || "").toLowerCase();
+    const newStatus = currentStatus === "active" || currentStatus === "operational" ? "inactive" : "active";
+    try {
+      const res = await apiFetch(`/api/admin/sites/${biz.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        showToast(`Partner license status set to ${newStatus.toUpperCase()}!`);
+        fetchSites();
+      } else {
+        showToast("Failed to update partner status", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error updating status", "error");
     }
   };
 
@@ -655,22 +683,50 @@ export default function AdministrationSettingsPage() {
           {/* Current Onboarded Businesses */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-5">
-                <FiBriefcase className="text-[#D12031]" size={18} />
-                <h3 className="text-sm font-bold text-gray-900">Partner Business Licenses</h3>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <FiBriefcase className="text-[#D12031]" size={18} />
+                  <h3 className="text-sm font-bold text-gray-900">Partner Business Licenses</h3>
+                </div>
+                <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200/60">
+                  <button
+                    type="button"
+                    onClick={() => setActiveBizTab("active")}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-none ${
+                      activeBizTab === "active"
+                        ? "bg-[#D12031] text-white shadow-xs"
+                        : "text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    Active ({activeBusinesses.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveBizTab("archived")}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-none ${
+                      activeBizTab === "archived"
+                        ? "bg-[#D12031] text-white shadow-xs"
+                        : "text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    Archived ({archivedBusinesses.length})
+                  </button>
+                </div>
               </div>
 
               <div className="divide-y divide-gray-100">
-                {businesses.length === 0 ? (
+                {displayedBusinesses.length === 0 ? (
                   <div className="py-8 flex flex-col items-center justify-center text-center">
                     <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mb-3">
                       <FiBriefcase className="text-gray-300" size={16} />
                     </div>
-                    <p className="text-xs font-semibold text-gray-500">No partner businesses yet</p>
-                    <p className="text-[10px] text-gray-400 mt-1">Register your first entity to see it here</p>
+                    <p className="text-xs font-semibold text-gray-500">
+                      {activeBizTab === "active" ? "No active partner businesses yet" : "No archived partner businesses"}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">Register or manage entities to see them here</p>
                   </div>
                 ) : (
-                  businesses.map((biz: any) => (
+                  displayedBusinesses.map((biz: any) => (
                     <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
                       <div>
                         <div className="flex items-center gap-2">
@@ -689,13 +745,17 @@ export default function AdministrationSettingsPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                          (biz.status || "").toLowerCase() === "active" || (biz.status || "").toLowerCase() === "operational"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                            : "bg-gray-100 text-gray-500 border-gray-200"
-                        }`}>
+                        <button
+                          onClick={() => toggleBizStatus(biz)}
+                          className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border cursor-pointer transition-transform hover:scale-105 ${
+                            (biz.status || "").toLowerCase() === "active" || (biz.status || "").toLowerCase() === "operational"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                              : "bg-red-50 text-red-600 border-red-100 hover:bg-red-100"
+                          }`}
+                          title="Click to toggle status (Active / Inactive)"
+                        >
                           {biz.status || "N/A"}
-                        </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => confirmDeleteBiz(biz)}
