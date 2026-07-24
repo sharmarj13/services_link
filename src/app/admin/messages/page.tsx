@@ -14,6 +14,7 @@ interface ChatMessage {
   text: string;
   time: string;
   initials: string;
+  isRead?: boolean;
 }
 
 interface Conversation {

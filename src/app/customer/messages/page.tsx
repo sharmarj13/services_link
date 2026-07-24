@@ -28,6 +28,7 @@ interface Message {
   senderName: string;
   initials: string;
   isNotice?: boolean;
+  isRead?: boolean;
 }
 
 interface Conversation {
