@@ -1,0 +1,85 @@
+name: Build and Deploy Frontend to AWS ECR
+
+on:
+  push:
+    branches: [main]
+
+env:
+  IMAGE_NAME: frontend-latest
+  CONTAINER_NAME: serverlink-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create .env.production
+        run: |
+          echo "${{ secrets.ENV_FRONTEND }}" > .env.production
+
+      - name: Build Docker Image
+        run: |
+          docker build --no-cache \
+            -t serverlink-stagging:${IMAGE_NAME} .
+
+      - name: Tag Docker Image
+        run: |
+          docker tag \
+          serverlink-stagging:${IMAGE_NAME} \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/serverlink-stagging:${IMAGE_NAME}
+
+      - name: Push Docker Image
+        run: |
+          docker push \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/serverlink-stagging:${IMAGE_NAME}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+            docker login --username AWS --password-stdin \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+            docker stop serverlink-frontend || true
+            docker rm serverlink-frontend || true
+
+            docker rmi -f \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/serverlink-stagging:frontend-latest || true
+
+            docker pull \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/serverlink-stagging:frontend-latest
+
+            docker run -d \
+              --name serverlink-frontend \
+              --restart unless-stopped \
+              -p 3000:3000 \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/serverlink-stagging:frontend-latest
+
+            docker image prune -f
+
+            docker ps
+
+            docker logs --tail 50 serverlink-frontend
