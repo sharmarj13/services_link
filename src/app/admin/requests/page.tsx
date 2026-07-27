@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+import { toast } from "react-hot-toast";
+import React, { useState, useEffect } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -10,10 +13,11 @@ import {
   FiTrash2,
   FiCheck,
   FiCalendar,
+  FiLoader,
 } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
 import AdminLayout from "@/components/AdminLayout";
-
+import { API_BASE_URL } from "@/config";
 
 interface WorkRequest {
   id: string;
@@ -32,93 +36,90 @@ interface WorkRequest {
 }
 
 export default function AdminRequestsPage() {
-  // Mock Data Store in state
-  const [requests, setRequests] = useState<WorkRequest[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_requests");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            return parsed.map((r: WorkRequest) => {
-              let s = r.status;
-              if (s === "In-Progress") s = "Active";
-              if (s === "Pending") s = "Assigned";
-              return { ...r, status: s };
-            });
-          }
-        } catch { }
-      }
-    }
-    return [
-      {
-        id: "99402",
-        title: "HVAC Compressor Maintenance",
-        location: "Facility Area 48",
-        site: "Site A",
-        priority: "High",
-        status: "Active",
-        category: "Maintenance",
-        customer: "Maurice Maldonado",
-        department: "Restrooms",
-        dueDate: "2026-06-25",
-        description: "HVAC Compressor is making loud grinding noise and cooling is inefficient. Inspect belt, bearings and refrigerant levels.",
-        scopeOfWork: "Inspect belt, bearings, compressor coils, refrigerant line pressure and clean air filters.",
-        assignedTechnician: "John Doe",
-      },
-      {
-        id: "99408",
-        title: "Routine Safety Inspection",
-        location: "Main Assembly Floor",
-        site: "Site B",
-        priority: "Low",
-        status: "Assigned",
-        category: "Safety",
-        customer: "Alice Smith",
-        department: "Kitchen",
-        dueDate: "2026-06-30",
-        description: "Semiannual safety inspection of sprinkler valves, emergency exits, fire extinguishers and hazard markings.",
-        scopeOfWork: "Check pressure gauges, examine lock-outs, verify clear pathways to emergency exits.",
-        assignedTechnician: "Unassigned",
-      },
-      {
-        id: "99411",
-        title: "Deep Carpet Cleaning",
-        location: "Main Lobby Area",
-        site: "Site C",
-        priority: "Medium",
-        status: "Completed",
-        category: "Cleaning",
-        customer: "Robert Brown",
-        department: "Lobby",
-        dueDate: "2026-06-18",
-        description: "High traffic carpet area needs heavy steam extraction cleaning and deodorizing before corporate meeting.",
-        scopeOfWork: "Pre-treat traffic lanes, steam clean entire area, deodorize, set air blowers.",
-        assignedTechnician: "Sarah Connor",
-      },
-      {
-        id: "99415",
-        title: "Warehouse Ventilation Repair",
-        location: "Loading Dock B",
-        site: "Site D",
-        priority: "High",
-        status: "Active",
-        category: "Maintenance",
-        customer: "Emma Wilson",
-        department: "Maintenance",
-        dueDate: "2026-06-28",
-        description: "Exhaust fan in Warehouse loading dock B is not turning on. Electrical panel check required.",
-        scopeOfWork: "Diagnose electrical power feed, check motor capacitor, replace motor if burned out.",
-        assignedTechnician: "Alex Mercer",
-      },
-    ];
-  });
+  const [requests, setRequests] = useState<WorkRequest[]>([]);
+  const [techs, setTechs] = useState<any[]>([]);
+  const [sitesList, setSitesList] = useState<{ id: string; name: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [filterSite, setFilterSite] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
+
+  // Pagination States (Backend-Driven)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const itemsPerPage = 6;
+
+  const fetchRequests = async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+      if (filterStatus && filterStatus !== "All") params.append("status", filterStatus);
+      if (filterPriority && filterPriority !== "All") params.append("priority", filterPriority);
+      if (filterSite && filterSite !== "All") params.append("siteId", filterSite);
+      params.append("page", String(currentPage));
+      params.append("limit", String(itemsPerPage));
+
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
+      if (res.ok) {
+        const result = await res.json();
+        const payload = result.data || result;
+        if (payload && Array.isArray(payload.requests)) {
+          setRequests(payload.requests);
+          setTotalCount(payload.total || payload.requests.length);
+          setServerTotalPages(payload.totalPages || 1);
+        } else if (Array.isArray(payload)) {
+          setRequests(payload);
+          setTotalCount(payload.length);
+          setServerTotalPages(Math.ceil(payload.length / itemsPerPage) || 1);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchTechs = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/techs`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setTechs(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchSites = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/sites`, { credentials: "include" });
+      if (res.ok) {
+        const json = await res.json();
+        const rawList = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : []);
+        const filteredList = rawList.filter((s: any) => s.name?.toLowerCase() !== "dummy");
+        setSitesList(filteredList);
+      }
+    } catch (err) {
+      console.error(err);
+      setSitesList([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+    fetchTechs();
+    fetchSites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm, filterStatus, filterPriority, filterSite, currentPage]);
 
   // Modals States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -191,104 +192,126 @@ export default function AdminRequestsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle || !formDesc || !formCust) {
-      alert("Please fill in all required fields.");
+      toast.success("Please fill in all required fields.");
       return;
     }
 
-    const newId = String(Math.floor(10000 + Math.random() * 90000));
-    const newReq: WorkRequest = {
-      id: newId,
-      title: formTitle,
-      location: formDept !== "None" ? `${formDept} Area` : "Facility Area 1A",
-      site: formSite,
-      priority: formPriority,
-      status: formStatus,
-      category: formCategory,
-      customer: formCust,
-      department: formDept,
-      dueDate: formDueDate || "2026-06-30",
-      description: formDesc,
-      scopeOfWork: formScope,
-      assignedTechnician: formTech,
-    };
-
-    const updated = [newReq, ...requests];
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
+    setIsSubmitting(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: formTitle,
+          location: formDept !== "None" ? `${formDept} Area` : "Facility Area",
+          site: formSite,
+          priority: formPriority,
+          status: formStatus,
+          category: formCategory,
+          customer: formCust,
+          department: formDept,
+          dueDate: formDueDate || null,
+          description: formDesc,
+          scopeOfWork: formScope,
+          assignedTechnician: formTech,
+        }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsAddModalOpen(false);
+        resetForm();
+        showToast("Work Request created successfully!");
+      } else {
+        toast.error("Failed to create work request.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error((err as any).message || "Error creating work request.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsAddModalOpen(false);
-    resetForm();
-    showToast("Work Request created successfully!");
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeRequest) return;
 
-    const updatedRequests = requests.map((r) => {
-      if (r.id === activeRequest.id) {
-        return {
-          ...r,
+    setIsSubmitting(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
           title: formTitle,
           description: formDesc,
           scopeOfWork: formScope,
-          dueDate: formDueDate,
+          dueDate: formDueDate || null,
           priority: formPriority,
           category: formCategory,
           department: formDept,
           site: formSite,
           customer: formCust,
           status: formStatus,
-          location: formDept !== "None" ? `${formDept} Area` : r.location,
+          location: formDept !== "None" ? `${formDept} Area` : activeRequest.location,
           assignedTechnician: formTech,
-        };
+        }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsEditModalOpen(false);
+        showToast("Work Request updated successfully!");
+      } else {
+        toast.error("Failed to update work request.");
       }
-      return r;
-    });
-
-    setRequests(updatedRequests);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updatedRequests));
+    } catch (err) {
+      console.error(err);
+      toast.error((err as any).message || "Error updating work request.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsEditModalOpen(false);
-    showToast("Work Request updated successfully!");
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!activeRequest) return;
-    const updated = requests.filter((r) => r.id !== activeRequest.id);
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
+    setIsSubmitting(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${activeRequest.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setIsDeleteModalOpen(false);
+        showToast("Work Request deleted successfully!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error((err as any).message || "Error deleting work request.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsDeleteModalOpen(false);
-    showToast("Work Request deleted successfully!");
   };
 
-  const handleQuickAssign = (id: string, technicianName: string) => {
-    const updated = requests.map((req) => {
-      if (req.id === id) {
-        return {
-          ...req,
-          assignedTechnician: technicianName,
-          status: technicianName === "Unassigned" ? "Assigned" : "Active",
-        };
+  const handleQuickAssign = async (id: string, technicianName: string) => {
+    try {
+      const status = technicianName === "Unassigned" ? "Pending" : "Active";
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ assignedTechnician: technicianName, status }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        showToast("Technician assigned!");
       }
-      return req;
-    });
-
-    setRequests(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_requests", JSON.stringify(updated));
-    }
-    if (technicianName === "Unassigned") {
-      showToast(`Technician unassigned. Status transitioned to Assigned.`);
-    } else {
-      showToast(`Technician ${technicianName} assigned successfully. Status transitioned to Active.`);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -299,19 +322,6 @@ export default function AdminRequestsPage() {
   const handleRemovePhoto = (index: number) => {
     setUploadedPhotos(uploadedPhotos.filter((_, idx) => idx !== index));
   };
-
-  // Filtered requests
-  const filteredRequests = requests.filter((r) => {
-    const matchesSearch =
-      r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.id.includes(searchTerm) ||
-      r.customer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSite = filterSite === "All" || r.site === filterSite;
-    const matchesStatus = filterStatus === "All" || r.status === filterStatus;
-    const matchesPriority = filterPriority === "All" || r.priority === filterPriority;
-
-    return matchesSearch && matchesSite && matchesStatus && matchesPriority;
-  });
 
   return (
     <AdminLayout
@@ -341,11 +351,15 @@ export default function AdminRequestsPage() {
               className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-[#D12031]"
             >
               <option value="All">All Sites</option>
-              <option value="Site A">Site A</option>
-              <option value="Site B">Site B</option>
-              <option value="Site C">Site C</option>
-              <option value="Site D">Site D</option>
-              <option value="Site E">Site E</option>
+              {sitesList.length === 0 ? (
+                <option disabled value="">No Sites Found</option>
+              ) : (
+                sitesList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))
+              )}
             </select>
 
             {/* Status Filter */}
@@ -385,7 +399,58 @@ export default function AdminRequestsPage() {
 
         {/* 📋 Work Requests Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredRequests.map((req) => (
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs animate-pulse flex flex-col justify-between h-56"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-3.5 bg-gray-200 rounded w-28" />
+                    <div className="flex gap-2">
+                      <div className="h-4 bg-gray-200 rounded-full w-16" />
+                      <div className="h-4 bg-gray-200 rounded-full w-16" />
+                    </div>
+                  </div>
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
+                  <div className="h-3.5 bg-gray-200 rounded w-1/2 mb-4" />
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+                  <div className="h-3.5 bg-gray-200 rounded w-32" />
+                  <div className="h-7 bg-gray-200 rounded-lg w-24" />
+                </div>
+              </div>
+            ))
+          ) : requests.length === 0 ? (
+            <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-200 text-center flex flex-col items-center justify-center min-h-[300px]">
+              <div className="w-12 h-12 rounded-full bg-red-50 text-[#D12031] flex items-center justify-center mb-3">
+                <FiSearch size={22} />
+              </div>
+              <h4 className="text-base font-bold text-gray-900 mb-1">No Work Requests Found</h4>
+              <p className="text-xs font-semibold text-gray-500 max-w-sm mb-4">
+                We couldn't find any work requests matching your search query or selected filters.
+              </p>
+              {(searchTerm || filterSite !== "All" || filterStatus !== "All" || filterPriority !== "All") && (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterSite("All");
+                    setFilterStatus("All");
+                    setFilterPriority("All");
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer border-none"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            requests.map((req) => (
             <div
               key={req.id}
               className="bg-white rounded-2xl border border-gray-200 border-l-[5px] rounded-l-2xl shadow-xs p-6 hover:shadow-md transition-shadow relative flex flex-col justify-between"
@@ -395,29 +460,24 @@ export default function AdminRequestsPage() {
                     ? "#10B981"
                     : req.status === "Active"
                       ? "#D12031"
-                      : req.status === "Assigned"
-                        ? "#F59E0B"
-                        : "#9CA3AF",
+                      : "#F59E0B",
               }}
             >
               <div>
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-[11px] font-black text-gray-400">ID #{req.id}</span>
-                  <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500">
+                  <span className="font-bold text-gray-700">#{req.id.substring(0, 8)}</span>
+                  <div className="flex items-center gap-2">
                     {/* Status Badge */}
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${req.status === "Completed"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                         : req.status === "Active"
-                          ? "bg-red-50 text-[#D12031] border-red-100"
-                          : req.status === "Assigned"
-                            ? "bg-amber-50 text-amber-700 border-amber-100"
-                            : "bg-gray-100 text-gray-600 border-gray-200"
+                          ? "bg-rose-50 text-rose-700 border-rose-100"
+                          : "bg-amber-50 text-amber-700 border-amber-100"
                         }`}
                     >
                       {req.status}
                     </span>
-
                     {/* Priority Badge */}
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${req.priority === "High"
@@ -454,10 +514,13 @@ export default function AdminRequestsPage() {
                       title="Quick Assign Technician"
                     >
                       <option value="Unassigned">Assign Tech...</option>
-                      <option value="John Doe">John Doe</option>
-                      <option value="Bob Johnson">Bob Johnson</option>
-                      <option value="Sarah Connor">Sarah Connor</option>
-                      <option value="Alex Mercer">Alex Mercer</option>
+                      {techs.length === 0 ? (
+                        <option disabled value="">No Technicians Found</option>
+                      ) : (
+                        techs.map((t, idx) => (
+                          <option key={idx} value={t.name}>{t.name}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
@@ -490,13 +553,63 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
             </div>
-          ))}
-          {filteredRequests.length === 0 && (
-            <div className="col-span-full bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-500 font-semibold text-sm shadow-xs">
-              No work requests match the current filters.
-            </div>
-          )}
+          ))
+        )}
         </div>
+
+        {/* 📄 Backend Pagination Controls */}
+        {requests.length > 0 && serverTotalPages > 1 && (
+          <div className="bg-white px-6 py-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs font-semibold text-gray-500">
+              Showing <span className="font-bold text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)}</span> to{" "}
+              <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of{" "}
+              <span className="font-bold text-gray-900">{totalCount}</span> requests
+            </p>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+              >
+                Previous
+              </button>
+
+              {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
+                .filter((page) => page === 1 || page === serverTotalPages || Math.abs(page - currentPage) <= 1)
+                .map((page, idx, array) => {
+                  const prevPage = array[idx - 1];
+                  const showEllipsis = prevPage && page - prevPage > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {showEllipsis && <span className="px-2 text-xs font-bold text-gray-400">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          currentPage === page
+                            ? "bg-[#D12031] text-white border-[#D12031] shadow-xs"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              <button
+                type="button"
+                disabled={currentPage === serverTotalPages || serverTotalPages === 0}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, serverTotalPages))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -536,11 +649,15 @@ export default function AdminRequestsPage() {
                   onChange={(e) => setFormSite(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-[#D12031]"
                 >
-                  <option>Site A</option>
-                  <option>Site B</option>
-                  <option>Site C</option>
-                  <option>Site D</option>
-                  <option>Site E</option>
+                  {sitesList.length > 0 ? (
+                    sitesList.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="General">General Site</option>
+                  )}
                 </select>
               </div>
 
@@ -670,10 +787,13 @@ export default function AdminRequestsPage() {
                   className="w-full bg-white border border-gray-305 rounded-xl px-4 py-2.5 text-sm text-gray-950 outline-none focus:border-[#D12031]"
                 >
                   <option value="Unassigned">Unassigned (Assign Later)</option>
-                  <option value="John Doe">John Doe</option>
-                  <option value="Bob Johnson">Bob Johnson</option>
-                  <option value="Sarah Connor">Sarah Connor</option>
-                  <option value="Alex Mercer">Alex Mercer</option>
+                  {techs.length === 0 ? (
+                    <option disabled value="">No Technicians Available</option>
+                  ) : (
+                    techs.map((t, idx) => (
+                      <option key={idx} value={t.name}>{t.name}</option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -710,17 +830,19 @@ export default function AdminRequestsPage() {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsAddModalOpen(false)}
-                className="flex-1 py-2.5 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 onClick={handleAddSubmit}
-                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Submit Request
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Submit Request"}
               </button>
             </div>
           </div>
@@ -760,11 +882,15 @@ export default function AdminRequestsPage() {
                   onChange={(e) => setFormSite(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-[#D12031]"
                 >
-                  <option>Site A</option>
-                  <option>Site B</option>
-                  <option>Site C</option>
-                  <option>Site D</option>
-                  <option>Site E</option>
+                  {sitesList.length > 0 ? (
+                    sitesList.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="General">General Site</option>
+                  )}
                 </select>
               </div>
 
@@ -885,10 +1011,9 @@ export default function AdminRequestsPage() {
                   className="w-full bg-white border border-gray-305 rounded-xl px-4 py-2.5 text-sm text-gray-955 outline-none focus:border-[#D12031]"
                 >
                   <option value="Unassigned">Unassigned</option>
-                  <option value="John Doe">John Doe</option>
-                  <option value="Bob Johnson">Bob Johnson</option>
-                  <option value="Sarah Connor">Sarah Connor</option>
-                  <option value="Alex Mercer">Alex Mercer</option>
+                  {techs.map((t, idx) => (
+                    <option key={idx} value={t.name}>{t.name}</option>
+                  ))}
                 </select>
               </div>
             </form>
@@ -897,17 +1022,19 @@ export default function AdminRequestsPage() {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsEditModalOpen(false)}
-                className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 onClick={handleEditSubmit}
-                className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Save Changes
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Save Changes"}
               </button>
             </div>
           </div>
@@ -929,16 +1056,18 @@ export default function AdminRequestsPage() {
 
             <div className="flex gap-3">
               <button
+                disabled={isSubmitting}
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-750 font-bold text-xs rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-750 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
+                disabled={isSubmitting}
                 onClick={handleDeleteConfirm}
-                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none"
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Delete
+                {isSubmitting ? <FiLoader className="animate-spin" size={16} /> : "Delete"}
               </button>
             </div>
           </div>

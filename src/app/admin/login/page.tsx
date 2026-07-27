@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FiMail, FiLogIn } from "react-icons/fi";
 import { AuthLayout, Logo, InputField, PasswordInput, PrimaryButton } from "@/components/AuthUI";
+import { API_BASE_URL } from "@/config";
 
 interface AdminUser {
   id: string;
@@ -19,49 +21,99 @@ export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function checkExistingAuth() {
+      try {
+        const res = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const meData = await res.json();
+          const userObj = meData.user || meData.data?.user || meData;
+          const isAdmin =
+            userObj?.isAdmin === true ||
+            userObj?.isSuperAdmin === true ||
+            userObj?.role === "admin" ||
+            userObj?.role === "super_admin" ||
+            userObj?.globalRole === "admin" ||
+            userObj?.globalRole === "super_admin" ||
+            userObj?.siteUser?.role === "admin";
+
+          if (isAdmin) {
+            router.replace("/admin/overview");
+          }
+        }
+      } catch (err) {
+        // User is not logged in, stay on login page
+      }
+    }
+    checkExistingAuth();
+  }, [router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
-    if (typeof window !== "undefined") {
-      // Retrieve admins from localStorage or fallback to defaults
-      let admins: AdminUser[] = [];
-      const saved = localStorage.getItem("servicelink_admins");
-      if (saved) {
-        try {
-          admins = JSON.parse(saved);
-        } catch {
-          // ignore
-        }
+    try {
+      // 1. Log in via backend
+      const res = await apiFetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.message || "Invalid email address or password. Please try again.");
+        setIsLoading(false);
+        return;
       }
 
-      if (admins.length === 0) {
-        admins = [
-          { id: "1", name: "Admin User", email: "admin@servicelink.com", role: "Super Admin", password: "admin" },
-          { id: "2", name: "Support Desk", email: "support@servicelink.com", role: "Operations Lead", password: "admin" },
-        ];
-        localStorage.setItem("servicelink_admins", JSON.stringify(admins));
+      // 2. Verify admin role
+      const meRes = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
+        credentials: "include",
+      });
+
+      if (!meRes.ok) {
+        setError("Failed to verify user profile.");
+        setIsLoading(false);
+        return;
       }
 
-      // Find admin by email
-      const matchedAdmin = admins.find(
-        (adm) => adm.email.toLowerCase() === email.trim().toLowerCase()
-      );
+      const meData = await meRes.json();
+      const userObj = meData.user || meData.data?.user || meData;
+      const isAdmin =
+        userObj?.isAdmin === true ||
+        userObj?.isSuperAdmin === true ||
+        userObj?.role === "admin" ||
+        userObj?.role === "super_admin" ||
+        userObj?.globalRole === "admin" ||
+        userObj?.globalRole === "super_admin" ||
+        userObj?.siteUser?.role === "admin";
 
-      if (matchedAdmin) {
-        // Match password (if stored, otherwise use fallback "admin")
-        const expectedPwd = matchedAdmin.password || "admin";
-        if (password === expectedPwd) {
-          localStorage.setItem("servicelink_current_admin", JSON.stringify(matchedAdmin));
-          router.push("/admin/overview");
-          return;
-        }
+      if (!isAdmin) {
+        // If they are not an admin, we must log them out immediately
+        await apiFetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        setError("Unauthorized: Admin access required.");
+        setIsLoading(false);
+        return;
       }
 
-      setError("Invalid email address or password. Please try again.");
-    } else {
+      // Success - Redirect to admin overview
       router.push("/admin/overview");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError(
+        (err as any).message || "An unexpected error occurred. Make sure the server is running."
+      );
+      setIsLoading(false);
     }
   };
 
@@ -113,8 +165,8 @@ export default function AdminLoginPage() {
           </Link>
         </div>
 
-        <PrimaryButton id="btn-admin-sign-in">
-          <FiLogIn size={18} /> Sign IN
+        <PrimaryButton id="btn-admin-sign-in" isLoading={isLoading}>
+          {!isLoading && <FiLogIn size={18} />} Sign IN
         </PrimaryButton>
       </form>
     </AuthLayout>

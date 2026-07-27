@@ -1,6 +1,7 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   FiSearch,
@@ -9,7 +10,8 @@ import {
   FiChevronDown
 } from "react-icons/fi";
 import TechnicianLayout from "@/components/TechnicianLayout";
-import FilterModal from "@/components/FilterModal";
+import FilterModal, { FilterOptions } from "@/components/FilterModal";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface Notice {
   jobId: string;
@@ -24,153 +26,233 @@ interface Notice {
 interface JobRequest {
   id: string;
   title: string;
-  location: string;
-  priority: "High" | "Medium" | "Low";
-  status: "Assigned" | "Completed";
+  siteName?: string;
+  siteId?: string;
+  priority: string;
+  status: string;
+  assignedEmployeeId?: string;
+  location?: string;
+  department?: string;
+  createdAt?: string;
 }
 
-const JOBS_DATA: JobRequest[] = [
-  {
-    id: "99402",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Assigned",
-  },
-  {
-    id: "99403",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Medium",
-    status: "Assigned",
-  },
-  {
-    id: "99404",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Low",
-    status: "Assigned",
-  },
-  {
-    id: "99405",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Assigned",
-  },
-  {
-    id: "99406",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Assigned",
-  },
-  {
-    id: "99407",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Low",
-    status: "Assigned",
-  },
-  {
-    id: "99410",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Completed",
-  },
-  {
-    id: "99411",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Medium",
-    status: "Completed",
-  },
-  {
-    id: "99412",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Low",
-    status: "Completed",
-  },
-  {
-    id: "99413",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Completed",
-  },
-  {
-    id: "99414",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "High",
-    status: "Completed",
-  },
-  {
-    id: "99415",
-    title: "HVAC Compressor Maintenance",
-    location: "Facility Area 4B",
-    priority: "Low",
-    status: "Completed",
-  }
-];
-
 export default function WorkRequestsPage() {
-  const [activeFilter, setActiveFilter] = useState<"Assigned" | "Completed">("Assigned");
+  const [activeFilter, setActiveFilter] = useState<"All" | "Assigned" | "In Progress" | "Active" | "Completed">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [jobsList] = useState<JobRequest[]>(JOBS_DATA);
+  
+  const [jobsList, setJobsList] = useState<JobRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
-
-  useEffect(() => {
-    try {
-      let storedNotices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-      if (storedNotices.length === 0) {
-        storedNotices = [
-          {
-            jobId: "99410",
-            noticeType: "Maintenance Issue",
-            priority: "High",
-            description: "Found a refrigerant gas leak at the evaporator coil joints. Pressure levels are below threshold. Recommended immediate evacuation and solder-seal of joint pipes.",
-            actionRequired: true,
-            date: "Jun 24, 2026",
-            time: "11:30 AM"
-          },
-          {
-            jobId: "99411",
-            noticeType: "Safety Hazard",
-            priority: "Urgent",
-            description: "Exposed high-voltage wiring detected behind the fan control panel. Insulation has deteriorated. Panel is locked out, but needs urgent cable replacement.",
-            actionRequired: true,
-            date: "Jun 25, 2026",
-            time: "09:45 AM"
-          }
-        ];
-        localStorage.setItem("servicelink_notices", JSON.stringify(storedNotices));
-      }
-      setNotices(storedNotices);
-    } catch {}
-  }, []);
-
-  const handleStartJob = (id: string) => {
-    // update state to simulate job start
-    alert(`Starting job #${id}...`);
-  };
-
-  // Filter list by status & search query
-  const filteredJobs = jobsList.filter((job) => {
-    const matchesStatus = job.status === activeFilter;
-    const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.id.includes(searchQuery) ||
-      job.location.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+  const [currentFilters, setCurrentFilters] = useState<FilterOptions>({
+    department: "All departments",
+    priority: "All priorities",
+    startDate: "",
+    endDate: ""
   });
 
+  // Debounce search query to prevent spamming API on every keystroke
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Fetch technician details and work requests
+  const fetchJobs = useCallback(async (
+    statusToApply: string,
+    searchToApply: string,
+    filtersToApply: FilterOptions
+  ) => {
+    setIsLoading(true);
+    try {
+      // 1. Fetch current user context
+      let userId = currentUserId;
+      if (!userId) {
+        const userRes = await apiFetch("/api/auth/me");
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          userId = (userData.data?.user || userData.user)?.id;
+          setCurrentUserId(userId);
+        }
+      }
+
+      // 2. Build URL query params based on selected filters
+      const queryParams = new URLSearchParams();
+      
+      let backendStatus: string | undefined = undefined;
+      if (statusToApply === "Assigned") backendStatus = "pending";
+      else if (statusToApply === "In Progress") backendStatus = "in_progress";
+      else if (statusToApply === "Active") backendStatus = "active";
+      else if (statusToApply === "Completed") backendStatus = "completed";
+
+      if (backendStatus) {
+        queryParams.append("status", backendStatus);
+      }
+
+      if (searchToApply) {
+        queryParams.append("search", searchToApply);
+      }
+
+      if (filtersToApply.department && filtersToApply.department !== "All departments") {
+        queryParams.append("department", filtersToApply.department);
+      }
+
+      if (filtersToApply.priority && filtersToApply.priority !== "All priorities") {
+        queryParams.append("priority", filtersToApply.priority.toLowerCase());
+      }
+
+      if (filtersToApply.startDate) {
+        queryParams.append("startDate", filtersToApply.startDate);
+      }
+
+      if (filtersToApply.endDate) {
+        queryParams.append("endDate", filtersToApply.endDate);
+      }
+
+      queryParams.append("limit", "100");
+
+      // 3. Fetch requests with query params
+      const res = await apiFetch(`/api/work-requests/tech/all-sites?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          // Filter to only show requests assigned to this tech
+          const myJobs = data.data.filter((j: any) => j.assignedEmployeeId === userId);
+          setJobsList(myJobs);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch jobs:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUserId]);
+
+  // Trigger refetch whenever filters or search query changes
+  useEffect(() => {
+    fetchJobs(activeFilter, debouncedSearchQuery, currentFilters);
+
+    // Fetch safety notices from database for alerts check
+    const fetchSafetyNotices = async () => {
+      try {
+        const res = await apiFetch("/api/safety-notices");
+        if (res.ok) {
+          const body = await res.json();
+          const list = (body.data || []).map((dbNotice: any) => {
+            const noticeDate = new Date(dbNotice.createdAt);
+            return {
+              jobId: dbNotice.workRequestId,
+              noticeType: dbNotice.noticeType,
+              priority: dbNotice.priority,
+              description: dbNotice.description,
+              actionRequired: dbNotice.actionRequired,
+              date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            };
+          });
+          setNotices(list);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchSafetyNotices();
+  }, [activeFilter, debouncedSearchQuery, currentFilters, fetchJobs]);
+
+  const handleStartJob = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/work-requests/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: "in_progress" })
+      });
+      if (res.ok) {
+        toast.success("You have successfully started this job!");
+        fetchJobs(activeFilter, debouncedSearchQuery, currentFilters); // refresh list
+      } else {
+        toast.error("Failed to start job. Please try again.");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error((e as any).message || "Failed to start job due to network error.");
+    }
+  };
+
+  const handleExport = () => {
+    if (filteredJobs.length === 0) {
+      toast.success("No data available to export");
+      return;
+    }
+    const headers = ["ID", "Title", "Location", "Priority", "Status"];
+    const rows = filteredJobs.map(job => [
+      job.id,
+      job.title,
+      job.siteName || "N/A",
+      job.priority,
+      job.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `my_work_requests_${activeFilter.toLowerCase()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Filter jobs based on active search/filter dropdown
+  const filteredJobs = jobsList.filter((job) => {
+    // 1. Search Query Filter
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase().trim();
+      const matchTitle = job.title.toLowerCase().includes(q);
+      const matchSite = (job.siteName || "").toLowerCase().includes(q);
+      const matchId = job.id.toLowerCase().includes(q);
+      if (!matchTitle && !matchSite && !matchId) return false;
+    }
+    // 2. Status Filter
+    if (activeFilter === "Assigned" && job.status !== "pending") return false;
+    if (activeFilter === "In Progress" && job.status !== "in_progress") return false;
+    if (activeFilter === "Active" && job.status !== "pending" && job.status !== "in_progress") return false;
+    if (activeFilter === "Completed" && job.status !== "completed") return false;
+
+    // 3. Department Filter
+    if (currentFilters.department && currentFilters.department !== "All departments") {
+      if (((job as any).departmentName || (job as any).department) !== currentFilters.department) return false;
+    }
+    // 4. Priority Filter
+    if (currentFilters.priority && currentFilters.priority !== "All priorities") {
+      if (job.priority?.toLowerCase() !== currentFilters.priority.toLowerCase()) return false;
+    }
+
+    return true;
+  });
+
+  // Pagination Logic
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery, currentFilters]);
+
+  const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
+  const displayedJobs = filteredJobs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   const getBadgeColor = (priority: string) => {
-    if (priority === "High") return "bg-[#e6f4ea] text-[#1e8e3e] border-[#ceead6]";
-    if (priority === "Medium") return "bg-[#f4fce3] text-[#7cb342] border-[#dcedc8]";
+    const prio = priority?.toLowerCase();
+    if (prio === "high" || prio === "urgent") return "bg-[#e6f4ea] text-[#1e8e3e] border-[#ceead6]";
+    if (prio === "medium") return "bg-[#f4fce3] text-[#7cb342] border-[#dcedc8]";
     return "bg-[#fef7e0] text-[#fbc02d] border-[#fff0b3]";
   };
 
@@ -218,7 +300,7 @@ export default function WorkRequestsPage() {
 
             {dropdownOpen && (
               <div className="absolute top-full left-0 right-0 bg-white border border-[#D12031] border-t-0 rounded-b-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-50 overflow-hidden">
-                {(["Assigned", "Completed"] as const).map((s) => {
+                {(["All", "Assigned", "In Progress", "Active", "Completed"] as const).map((s) => {
                   const isSelected = activeFilter === s;
                   return (
                     <button
@@ -254,7 +336,10 @@ export default function WorkRequestsPage() {
           </button>
 
           {/* Export button */}
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-lg transition-colors shadow-sm">
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[14px] rounded-lg transition-colors shadow-sm cursor-pointer"
+          >
             <FiDownload size={16} />
             <span>Export</span>
           </button>
@@ -266,68 +351,150 @@ export default function WorkRequestsPage() {
         {/* Red Title Banner */}
         <div className="bg-[#D12031] px-6 py-5">
           <h2 className="text-white text-[17px] font-bold">My Work Requests</h2>
-          <p className="text-white/90 text-[12px] font-medium mt-1">Track the status of work requests you&apos;ve submitted</p>
+          <p className="text-white/90 text-[12px] font-medium mt-1">Track the status of work requests assigned to you</p>
         </div>
 
         {/* White Inner Container holding the cards */}
         <div className="p-6">
-          {filteredJobs.length === 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {Array(4).fill(0).map((_, i) => (
+                <div key={i} className="border border-gray-200 border-l-[4px] border-l-gray-300 rounded-xl p-6 bg-white shadow-sm flex flex-col justify-between h-[180px] animate-pulse">
+                  <div className="space-y-3">
+                    <div className="h-5 bg-gray-200 rounded w-2/3"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                  </div>
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="h-9 bg-gray-200 rounded w-24"></div>
+                    <div className="h-5 bg-gray-200 rounded w-20"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredJobs.length === 0 ? (
             <div className="py-12 text-center text-gray-500 font-medium">
               No work requests found matching the filter/query.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={`border border-gray-200 border-l-[4px] rounded-xl p-6 bg-white shadow-sm flex flex-col justify-between transition-shadow hover:shadow-md ${job.status === "Completed" ? "border-l-[#2e7d32]" : "border-l-[#D12031]"
+              {displayedJobs.map((job) => {
+                const hasNotice = notices.some((n: Notice) => n.jobId === job.id);
+                const isCompleted = job.status === "completed";
+                const isStarted = job.status === "in_progress";
+                
+                return (
+                  <div
+                    key={job.id}
+                    className={`border border-gray-200 border-l-[4px] rounded-xl p-6 bg-white shadow-sm flex flex-col justify-between transition-shadow hover:shadow-md ${
+                      isCompleted ? "border-l-[#2e7d32]" : "border-l-[#D12031]"
                     }`}
-                >
-                  {/* Top card info */}
-                  <div>
-                    <div className="flex items-start justify-between gap-4">
-                      <h3 className="text-[16px] font-bold text-gray-900 leading-tight">
-                        {job.title}
-                      </h3>
-                      <span className={`text-[11px] font-bold px-3 py-1 rounded-full border shrink-0 ${getBadgeColor(job.priority)}`}>
-                        {job.priority} Priority
-                      </span>
-                    </div>
-                    <p className="text-[12px] text-gray-500 mt-2 font-medium">{job.location} • ID #{job.id}</p>
-                    {job.status === "Completed" && notices.some((n: Notice) => n.jobId === job.id) && (
-                      <div className="mt-3 text-[11px] font-bold text-[#D12031] bg-red-50 border border-red-200/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1 w-fit">
-                        Notice & Notify Applied
+                  >
+                    {/* Top card info */}
+                    <div>
+                      <div className="flex items-start justify-between gap-4">
+                        <h3 className="text-[16px] font-bold text-gray-900 leading-tight">
+                          {job.title}
+                        </h3>
+                        <span className={`text-[11px] font-bold px-3 py-1 rounded-full border shrink-0 capitalize ${getBadgeColor(job.priority)}`}>
+                          {job.priority} Priority
+                        </span>
                       </div>
-                    )}
-                  </div>
+                      <p className="text-[12px] text-gray-500 mt-2 font-medium">
+                        {job.siteName || "Main Facility"} • ID #{job.id.substring(0,8)}
+                      </p>
+                      {isCompleted && hasNotice && (
+                        <div className="mt-3 text-[11px] font-bold text-[#D12031] bg-red-50 border border-red-200/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1 w-fit">
+                          Notice & Notify Applied
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Actions / Status */}
-                  <div className="mt-8 flex items-center justify-between">
-                    {/* Status check / Start action */}
-                    {job.status === "Completed" ? (
-                      <span className="font-bold text-[#2e7d32] text-[15px]">
-                        Completed
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleStartJob(job.id)}
-                        className="px-6 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[13px] rounded-lg transition-colors shadow-sm"
+                    {/* Actions / Status */}
+                    <div className="mt-8 flex items-center justify-between">
+                      {/* Status check / Start action */}
+                      {isCompleted ? (
+                        <span className="font-bold text-[#2e7d32] text-[15px]">
+                          Completed
+                        </span>
+                      ) : isStarted ? (
+                        <span className="font-bold text-amber-600 text-[15px]">
+                          In Progress
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleStartJob(job.id)}
+                          className="px-6 py-2.5 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[13px] rounded-lg transition-colors shadow-sm cursor-pointer"
+                        >
+                          Start Job
+                        </button>
+                      )}
+
+                      {/* View Details Link */}
+                      <Link
+                        href={`/technician/requests/${job.id}`}
+                        className="text-[#D12031] hover:text-[#a81828] font-bold text-[14px] flex items-center gap-1 transition-colors cursor-pointer"
                       >
-                        Start Job
-                      </button>
-                    )}
-
-                    {/* View Details Link */}
-                    <Link
-                      href={`/technician/requests/${job.id}`}
-                      className="text-[#D12031] hover:text-[#a81828] font-bold text-[14px] flex items-center gap-1 transition-colors"
-                    >
-                      <span>View Detail</span>
-                      <span className="text-[16px] mb-0.5">›</span>
-                    </Link>
+                        <span>View Detail</span>
+                        <span className="text-[16px] mb-0.5">›</span>
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+          )}
+
+          {/* 📄 Pagination Controls */}
+          {filteredJobs.length > 0 && totalPages > 1 && (
+            <div className="mt-6 pt-4 border-t border-gray-150 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs font-semibold text-gray-500">
+                Showing <span className="font-bold text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredJobs.length)}</span> to{" "}
+                <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> of{" "}
+                <span className="font-bold text-gray-900">{filteredJobs.length}</span> jobs
+              </p>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                  .map((page, idx, array) => {
+                    const prevPage = array[idx - 1];
+                    const showEllipsis = prevPage && page - prevPage > 1;
+                    return (
+                      <React.Fragment key={page}>
+                        {showEllipsis && <span className="px-2 text-xs font-bold text-gray-400">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            currentPage === page
+                              ? "bg-[#D12031] text-white border-[#D12031] shadow-xs"
+                              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -337,7 +504,12 @@ export default function WorkRequestsPage() {
       <FilterModal
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
-        onApply={() => console.log("Filter applied")}
+        onApply={(appliedFilters) => {
+          setCurrentFilters(appliedFilters);
+          setIsFilterOpen(false);
+        }}
+        siteId={jobsList[0]?.siteId || ""}
+        currentFilters={currentFilters}
       />
 
       {/* Close dropdown on outside click */}

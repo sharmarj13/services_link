@@ -19,8 +19,9 @@ import {
   FiShield,
   FiUsers,
   FiMapPin,
-  FiBookOpen,
 } from "react-icons/fi";
+import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -37,46 +38,116 @@ export default function AdminLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [adminSectionOpen, setAdminSectionOpen] = useState(false);
+  const [adminSectionOpen, setAdminSectionOpen] = useState(() =>
+    typeof window !== "undefined" ? window.location.pathname.startsWith("/admin/administration") : false
+  );
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [adminUser, setAdminUser] = useState({
     name: "Admin User",
-    email: "admin@servicelink.com",
+    email: "admin@example.com",
     role: "Super Admin",
     initials: "AD"
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_current_admin");
-      if (saved) {
-        try {
-          const user = JSON.parse(saved);
-          if (user && user.name && user.email) {
-            const parts = user.name.split(" ");
-            let initials = "";
-            if (parts.length >= 2) {
-              initials = (parts[0][0] + parts[1][0]).toUpperCase();
-            } else if (parts.length === 1 && parts[0].length > 0) {
-              initials = parts[0].substring(0, 2).toUpperCase();
-            } else {
-              initials = "AD";
-            }
-            setAdminUser({
-              name: user.name,
-              email: user.email,
-              role: user.role || "Super Admin",
-              initials
-            });
-          }
-        } catch {
-          // ignore
+    let isMounted = true;
+    const fetchUser = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          if (isMounted) router.push("/admin/login");
+          return;
         }
+
+        const data = await res.json();
+        
+        // Ensure user is an admin
+        const role = (data.data?.user || data.user)?.siteUser?.role || (data.data?.user || data.user)?.globalRole;
+        if (role !== "admin" && role !== "super_admin") {
+          // If logged in but not admin, kick to login (or respective dashboard)
+          if (isMounted) router.push("/admin/login");
+          return;
+        }
+
+        if (isMounted) {
+          const user = (data.data?.user || data.user);
+          const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin User";
+          const parts = fullName.split(" ");
+          let initials = "";
+          if (parts.length >= 2) {
+            initials = (parts[0][0] + parts[1][0]).toUpperCase();
+          } else if (parts.length === 1 && parts[0].length > 0) {
+            initials = parts[0].substring(0, 2).toUpperCase();
+          } else {
+            initials = "AD";
+          }
+          
+          setAdminUser({
+            name: fullName,
+            email: user.email,
+            role: "Super Admin",
+            initials
+          });
+          setIsLoadingAuth(false);
+        }
+      } catch (err) {
+        if (isMounted) router.push("/admin/login");
       }
-    }
+    };
+    
+    fetchUser();
+
+    const handleProfileUpdated = () => {
+      setIsLoadingAuth(true);
+      fetchUser();
+    };
+
+    window.addEventListener("user-profile-updated", handleProfileUpdated);
+
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener("user-profile-updated", handleProfileUpdated);
+    };
+  }, [router]);
+
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnreadCounts = async () => {
+      try {
+        const notifRes = await apiFetch("/api/notifications/unread-count");
+        if (notifRes.ok) {
+          const d = await notifRes.json();
+          if (isMounted) setUnreadNotifications(d.count || 0);
+        }
+      } catch (e) {
+        // silent catch
+      }
+    };
+
+    fetchUnreadCounts();
+    const interval = setInterval(fetchUnreadCounts, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
+
+  // Keep Administration dropdown open whenever user is on an administration page
+  useEffect(() => {
+    if (pathname.startsWith("/admin/administration")) {
+      setAdminSectionOpen(true);
+    }
+  }, [pathname]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -91,12 +162,18 @@ export default function AdminLayout({
 
 
 
-  const handleSignOut = () => {
-    setShowSignOutModal(false);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("servicelink_current_admin");
+  const handleSignOut = async () => {
+    setIsLoggingOut(true);
+    try {
+      await apiFetch(`/api/auth/logout`, {
+        method: "POST"
+      });
+    } catch (err) {
+      console.error("Signout error:", err);
     }
-    router.push("/admin/login");
+    setIsLoggingOut(false);
+    setShowSignOutModal(false);
+    router.push("/login");
   };
 
   const menuItems = [
@@ -109,26 +186,55 @@ export default function AdminLayout({
 
   const adminSubItems = [
     { name: "Overview", path: "/admin/administration/overview", icon: <FiUsers size={16} /> },
-    { name: "Sites", path: "/admin/administration/sites", icon: <FiMapPin size={16} /> },
+    { name: "Sites & Depts", path: "/admin/administration/sites", icon: <FiMapPin size={16} /> },
     { name: "Settings", path: "/admin/administration/settings", icon: <FiSettings size={16} /> },
   ];
 
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [siteThemeColor, setSiteThemeColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentSite = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/sites/current`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status !== false) {
+            const site = data.data || data;
+            if (site.logoUrl) setSiteLogo(site.logoUrl);
+            if (site.themeColor) setSiteThemeColor(site.themeColor);
+          }
+        }
+      } catch (err) {
+        // Silently handle if no site is assigned yet
+      }
+    };
+    fetchCurrentSite();
+  }, []);
+
   const renderSidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#D12031] text-white">
+    <div 
+      className="flex flex-col h-full bg-[#D12031] text-white"
+      style={siteThemeColor ? { backgroundColor: siteThemeColor } : undefined}
+    >
       {/* Logo / Brand area */}
       <div className="flex items-center justify-center bg-white shrink-0 h-20 px-5">
-        <Image
-          src="/images/Logo.png"
+        <img
+          src={siteLogo || "/images/Logo.png"}
           alt="ServiceLink Cardinal Group Logo"
           width={170}
           height={52}
-          priority
-          className="object-contain"
+          className="object-contain max-h-16"
         />
       </div>
 
-      {/* Small red gap between logo and first nav item */}
-      <div className="shrink-0 h-2.5 bg-[#D12031]" />
+      {/* Small gap between logo and first nav item */}
+      <div 
+        className="shrink-0 h-2.5 bg-[#D12031]"
+        style={siteThemeColor ? { backgroundColor: siteThemeColor } : undefined}
+      />
 
       {/* Navigation items */}
       <div className="border-t border-white/15" />
@@ -140,14 +246,26 @@ export default function AdminLayout({
               key={item.name}
               href={item.path}
               onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-6 py-3.5 text-sm font-semibold text-white/90 border-b border-white/15 transition-colors select-none ${
+              className={`flex items-center justify-between px-6 py-3.5 text-sm font-semibold text-white/90 border-b border-white/15 transition-colors select-none ${
                 isActive ? "bg-[#C7283A]" : "hover:bg-white/8"
               }`}
             >
-              <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-85"}`}>
-                {item.icon}
-              </span>
-              <span>{item.name}</span>
+              <div className="flex items-center gap-3">
+                <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-85"}`}>
+                  {item.icon}
+                </span>
+                <span>{item.name}</span>
+              </div>
+              {item.name === "Messages" && unreadMessages > 0 && (
+                <span className="bg-white text-[#D12031] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
+              {item.name === "Notification" && unreadNotifications > 0 && (
+                <span className="bg-[#ffc107] text-[#856404] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -181,12 +299,17 @@ export default function AdminLayout({
                     key={subItem.name}
                     href={subItem.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 pl-12 pr-6 py-3 text-xs font-semibold text-white/80 border-b border-white/10 transition-colors select-none ${
-                      isActive ? "bg-[#A81828] text-white" : "hover:bg-white/5"
+                    className={`flex items-center gap-3 pl-12 pr-6 py-3 text-xs font-semibold border-b border-white/10 transition-colors select-none ${
+                      isActive
+                        ? "bg-[#A81828] text-white font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
                     }`}
                   >
-                    <span className="shrink-0">{subItem.icon}</span>
+                    <span className={`shrink-0 transition-opacity ${isActive ? "opacity-100" : "opacity-75"}`}>{subItem.icon}</span>
                     <span>{subItem.name}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
                   </Link>
                 );
               })}
@@ -247,58 +370,26 @@ export default function AdminLayout({
             </div>
           </div>
 
-          {/* Right: Profile Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setProfileDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none"
-            >
-              <div className="text-right hidden sm:block">
-                <div className="text-[14px] font-bold text-gray-900">{adminUser.name}</div>
-                <div className="text-[11px] text-gray-500">{adminUser.email}</div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-[#D12031]/10 flex items-center justify-center border border-[#D12031]/20 flex-shrink-0">
-                <span className="text-sm font-bold text-[#D12031]">{adminUser.initials}</span>
-              </div>
-              <FiChevronDown
-                size={16}
-                className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
-                  profileDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {profileDropdownOpen && (
-              <div className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-[dropdownFadeIn_0.15s_ease]">
-                {/* Profile header inside dropdown */}
-                <div className="px-4 py-3.5 border-b border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">{adminUser.name}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{adminUser.role}</div>
+          {/* Right: Profile Info */}
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
+            {isLoadingAuth ? (
+              <div className="flex items-center gap-3 animate-pulse">
+                <div className="hidden sm:flex flex-col items-end gap-1.5">
+                  <div className="h-3.5 bg-gray-200 rounded w-24"></div>
+                  <div className="h-2.5 bg-gray-200 rounded w-32"></div>
                 </div>
-
-                {/* Settings */}
-                <Link
-                  href="/admin/settings"
-                  onClick={() => setProfileDropdownOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-50/50"
-                >
-                  <FiSettings size={15} className="text-gray-400" />
-                  Settings
-                </Link>
-
-                {/* Logout */}
-                <button
-                  onClick={() => {
-                    setProfileDropdownOpen(false);
-                    handleSignOut();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-[#D12031] hover:bg-red-50/50 transition-colors border-none text-left cursor-pointer"
-                >
-                  <FiLogOut size={15} />
-                  Sign Out
-                </button>
+                <div className="h-10 w-10 rounded-full bg-gray-200 border border-gray-200 flex-shrink-0"></div>
               </div>
+            ) : (
+              <>
+                <div className="text-right hidden sm:block">
+                  <div className="text-[14px] font-bold text-gray-900">{adminUser.name}</div>
+                  <div className="text-[11px] text-gray-500">{adminUser.email}</div>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-[#D12031]/10 flex items-center justify-center border border-[#D12031]/20 flex-shrink-0">
+                  <span className="text-sm font-bold text-[#D12031]">{adminUser.initials}</span>
+                </div>
+              </>
             )}
           </div>
         </header>
@@ -368,15 +459,31 @@ export default function AdminLayout({
             <div className="flex gap-3">
               <button
                 onClick={() => setShowSignOutModal(false)}
-                className="flex-1 py-3 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-sm rounded-xl cursor-pointer transition-colors"
+                disabled={isLoggingOut}
+                className="flex-1 py-3 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-sm rounded-xl cursor-pointer transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSignOut}
-                className="flex-1 py-3 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-sm rounded-xl cursor-pointer shadow-lg shadow-red-500/20 transition-colors border-none"
+                onClick={async () => {
+                  setIsLoggingOut(true);
+                  await handleSignOut();
+                  setIsLoggingOut(false);
+                }}
+                disabled={isLoggingOut}
+                className="flex-1 py-3 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-sm rounded-xl cursor-pointer shadow-lg shadow-red-500/20 transition-colors border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
-                Yes, Sign Out
+                {isLoggingOut ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Signing Out...</span>
+                  </>
+                ) : (
+                  "Yes, Sign Out"
+                )}
               </button>
             </div>
           </div>

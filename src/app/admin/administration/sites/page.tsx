@@ -9,9 +9,11 @@ import {
   FiUsers,
   FiCheck,
   FiUser,
-  FiBriefcase,
+  FiRotateCcw,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
+import { API_BASE_URL } from "@/config";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface SiteItem {
   id: string;
@@ -23,38 +25,75 @@ interface SiteItem {
   department: string;
 }
 
-const DEFAULT_SITES: SiteItem[] = [
-  { id: "1", name: "Site A", address: "1201 Cardinal Blvd, City Center", technician: "Karl Smith", user: "Maurice Maldonado", status: "Operational", department: "Maintenance & Ops" },
-  { id: "2", name: "Site B", address: "845 Commerce Rd, Industrial Area", technician: "Sarah Connor", user: "John Doe", status: "Operational", department: "Safety & Compliance" },
-  { id: "3", name: "Site C", address: "302 Industrial Pkwy, West Zone", technician: "Bruce Banner", user: "Jane Foster", status: "Maintenance", department: "Quality Assurance" },
-  { id: "4", name: "Site D", address: "15 Logistics Dr, Logistics Park", technician: "Tony Stark", user: "Pepper Potts", status: "Operational", department: "Logistics" },
-  { id: "5", name: "Site E", address: "77 Innovation Ave, Tech Park", technician: "Stephen Strange", user: "Wong", status: "Alert State", department: "R&D" },
-];
+
 
 export default function AdministrationSitesPage() {
   const [sites, setSites] = useState<SiteItem[]>([]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("servicelink_sites");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length === 5) {
-            setSites(parsed);
-          } else {
-            // Load 5 default static sites if stored list has a different size
-            setSites(DEFAULT_SITES);
-            localStorage.setItem("servicelink_sites", JSON.stringify(DEFAULT_SITES));
-          }
-        } catch {
-          setSites(DEFAULT_SITES);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchSites = async () => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites?type=facility`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setSites(data);
+        } else if (data && data.status !== undefined) { // Fallback if backend wasn't unwrapped
+          if (data.status) setSites(data.data || []);
+        } else {
+          setSites(data || []);
         }
-      } else {
-        setSites(DEFAULT_SITES);
-        localStorage.setItem("servicelink_sites", JSON.stringify(DEFAULT_SITES));
       }
+    } catch (err) {
+      console.error("Failed to fetch sites:", err);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const fetchDepartments = async () => {
+    setIsDeptLoading(true);
+    try {
+      const res = await apiFetch(`/api/admin/departments`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDepartments(data);
+        } else if (data && data.status !== undefined) {
+          if (data.status) setDepartments(data.data || []);
+        } else {
+          setDepartments(data || []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeptLoading(false);
+    }
+  };
+
+  const [usersList, setUsersList] = useState<any[]>([]);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await apiFetch(`/api/admin/users`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setUsersList(data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSites();
+    fetchDepartments();
+    fetchUsers();
   }, []);
 
   // Modal States
@@ -62,6 +101,24 @@ export default function AdministrationSitesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [activeSite, setActiveSite] = useState<SiteItem | null>(null);
+  const [isSavingAdd, setIsSavingAdd] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSavingDelete, setIsSavingDelete] = useState(false);
+
+  // Departments State
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [isDeptLoading, setIsDeptLoading] = useState(true);
+  const [isSavingDept, setIsSavingDept] = useState(false);
+  const [isSavingEditDept, setIsSavingEditDept] = useState(false);
+  const [deptFormName, setDeptFormName] = useState("");
+  const [deptFormIsActive, setDeptFormIsActive] = useState(true);
+  const [isEditDeptModalOpen, setIsEditDeptModalOpen] = useState(false);
+  const [activeDept, setActiveDept] = useState<any>(null);
+  const [editDeptFormName, setEditDeptFormName] = useState("");
+  const [editDeptFormIsActive, setEditDeptFormIsActive] = useState(true);
+  const [isDeleteDeptModalOpen, setIsDeleteDeptModalOpen] = useState(false);
+  const [activeDeptToDelete, setActiveDeptToDelete] = useState<any>(null);
+  const [isSavingDeleteDept, setIsSavingDeleteDept] = useState(false);
 
   // Form Fields
   const [formName, setFormName] = useState("");
@@ -72,18 +129,107 @@ export default function AdministrationSitesPage() {
   const [formDepartment, setFormDepartment] = useState("");
 
   const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  // Pagination State
+  // Tab State (Active vs Archived)
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+  const [activeDeptTab, setActiveDeptTab] = useState<"active" | "archived">("active");
 
-  const totalPages = Math.ceil(sites.length / itemsPerPage);
+  const activeSites = sites.filter(s => (s.status || "").toLowerCase() === "active" || (s.status || "").toLowerCase() === "operational" || (s.status || "").toLowerCase() === "maintenance" || (s.status || "").toLowerCase() === "alert state");
+  const archivedSites = sites.filter(s => (s.status || "").toLowerCase() !== "active" && (s.status || "").toLowerCase() !== "operational" && (s.status || "").toLowerCase() !== "maintenance" && (s.status || "").toLowerCase() !== "alert state");
+  const filteredSites = activeTab === "active" ? activeSites : archivedSites;
+
+  const activeDepartments = departments.filter(d => d.isActive !== false);
+  const archivedDepartments = departments.filter(d => d.isActive === false);
+  const displayedDepartments = activeDeptTab === "active" ? activeDepartments : archivedDepartments;
+
+  const technicianUsers = usersList.filter(u => {
+    const role = (u.role || "").toLowerCase();
+    return role === "technician" || role === "tech";
+  });
+
+  const regularUsers = usersList.filter(u => {
+    const role = (u.role || "").toLowerCase();
+    return role === "customer" || role === "client" || role === "user";
+  });
+
+  const totalPages = Math.ceil(filteredSites.length / itemsPerPage);
   const activePage = Math.min(currentPage, totalPages || 1);
-  const displayedSites = sites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
+  const displayedSites = filteredSites.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
 
-  const showToast = (msg: string) => {
+  // Restore Confirmation States
+  const [isRestoreSiteModalOpen, setIsRestoreSiteModalOpen] = useState(false);
+  const [activeSiteToRestore, setActiveSiteToRestore] = useState<SiteItem | null>(null);
+  const [isSavingRestoreSite, setIsSavingRestoreSite] = useState(false);
+
+  const [isRestoreDeptModalOpen, setIsRestoreDeptModalOpen] = useState(false);
+  const [activeDeptToRestore, setActiveDeptToRestore] = useState<any>(null);
+  const [isSavingRestoreDept, setIsSavingRestoreDept] = useState(false);
+
+  const confirmRestoreDepartment = (dept: any) => {
+    setActiveDeptToRestore(dept);
+    setIsRestoreDeptModalOpen(true);
+  };
+
+  const handleRestoreDeptConfirm = async () => {
+    if (!activeDeptToRestore) return;
+    setIsSavingRestoreDept(true);
+    try {
+      const res = await apiFetch(`/api/admin/departments/${activeDeptToRestore.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isActive: true })
+      });
+      if (res.ok) {
+        showToast("Department restored successfully!");
+        fetchDepartments();
+        setIsRestoreDeptModalOpen(false);
+        setActiveDeptToRestore(null);
+      } else {
+        showToast("Failed to restore department", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error restoring department", "error");
+    } finally {
+      setIsSavingRestoreDept(false);
+    }
+  };
+
+  const confirmRestoreSite = (site: SiteItem) => {
+    setActiveSiteToRestore(site);
+    setIsRestoreSiteModalOpen(true);
+  };
+
+  const handleRestoreSiteConfirm = async () => {
+    if (!activeSiteToRestore) return;
+    setIsSavingRestoreSite(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites/${activeSiteToRestore.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: "Operational" })
+      });
+      if (res.ok) {
+        showToast("Facility site restored successfully!");
+        fetchSites();
+        setIsRestoreSiteModalOpen(false);
+        setActiveSiteToRestore(null);
+      } else {
+        showToast("Failed to restore site.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error restoring site.", "error");
+    } finally {
+      setIsSavingRestoreSite(false);
+    }
+  };
+
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMsg(""), 3500);
   };
 
   const handleOpenAddModal = () => {
@@ -112,68 +258,261 @@ export default function AdministrationSitesPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formAddress || !formTechnician || !formUser || !formDepartment) {
-      alert("Please fill in all required fields.");
+    if (!deptFormName) {
+      showToast("Department Name is required.", "error");
       return;
     }
-    const newSite: SiteItem = {
-      id: String(Date.now()),
-      name: formName,
-      address: formAddress,
-      technician: formTechnician,
-      user: formUser,
-      status: formStatus,
-      department: formDepartment,
-    };
-    const updated = [...sites, newSite];
-    setSites(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_sites", JSON.stringify(updated));
+    setIsSavingDept(true);
+    try {
+      const res = await apiFetch(`/api/admin/departments`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: deptFormName,
+          isActive: deptFormIsActive,
+        })
+      });
+      if (res.ok) {
+        showToast("Department created successfully!");
+        setDeptFormName("");
+        setDeptFormIsActive(true);
+        fetchDepartments();
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to create department", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error creating department", "error");
+    } finally {
+      setIsSavingDept(false);
     }
-    setIsAddModalOpen(false);
-    showToast("New facility site registered!");
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const confirmDeleteDept = (dept: any) => {
+    setActiveDeptToDelete(dept);
+    setIsDeleteDeptModalOpen(true);
+  };
+
+  const handleDeleteDepartment = async () => {
+    if (!activeDeptToDelete) return;
+    setIsSavingDeleteDept(true);
+    try {
+      const res = await apiFetch(`/api/admin/departments/${activeDeptToDelete.id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        showToast("Department deleted");
+        fetchDepartments();
+        setIsDeleteDeptModalOpen(false);
+        setActiveDeptToDelete(null);
+      } else {
+        showToast("Failed to delete department", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error deleting department", "error");
+    } finally {
+      setIsSavingDeleteDept(false);
+    }
+  };
+
+  const handleOpenEditDeptModal = (dept: any) => {
+    setActiveDept(dept);
+    setEditDeptFormName(dept.name);
+    setEditDeptFormIsActive(dept.isActive !== false); // default to true if undefined
+    setIsEditDeptModalOpen(true);
+  };
+
+  const handleEditDepartmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeSite) return;
-    if (!formName || !formAddress || !formTechnician || !formUser || !formDepartment) {
-      alert("Please fill in all required fields.");
+    if (!activeDept || !editDeptFormName) {
+      showToast("Department Name is required.", "error");
       return;
     }
-    const updated = sites.map((s) =>
-      s.id === activeSite.id
-        ? {
-          ...s,
+    setIsSavingEditDept(true);
+    try {
+      const res = await apiFetch(`/api/admin/departments/${activeDept.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editDeptFormName,
+          isActive: editDeptFormIsActive,
+        })
+      });
+      if (res.ok) {
+        showToast("Department updated successfully!");
+        setIsEditDeptModalOpen(false);
+        setActiveDept(null);
+        fetchDepartments();
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to update department", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error updating department", "error");
+    } finally {
+      setIsSavingEditDept(false);
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName || !formAddress) {
+      showToast("Name and Address are required.", "error");
+      return;
+    }
+    setIsSavingAdd(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites`, {
+        method: "POST",
+        body: JSON.stringify({
           name: formName,
           address: formAddress,
-          technician: formTechnician,
-          user: formUser,
           status: formStatus,
           department: formDepartment,
-        }
-        : s
-    );
-    setSites(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_sites", JSON.stringify(updated));
+          technician: formTechnician,
+          user: formUser,
+          siteType: "facility",
+        }),
+      });
+
+      if (res.ok) {
+        await fetchSites();
+        setIsAddModalOpen(false);
+        showToast("Site added successfully!");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to add site", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error adding site.", "error");
+    } finally {
+      setIsSavingAdd(false);
     }
-    setIsEditModalOpen(false);
-    showToast("Site specifications updated!");
   };
 
-  const handleDeleteConfirm = () => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!activeSite) return;
-    const updated = sites.filter((s) => s.id !== activeSite.id);
-    setSites(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("servicelink_sites", JSON.stringify(updated));
+    if (!formName || !formAddress) {
+      showToast("Name and Address are required.", "error");
+      return;
     }
-    setIsDeleteModalOpen(false);
-    showToast("Facility site deleted!");
+    setIsSavingEdit(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites/${activeSite.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: formName,
+          address: formAddress,
+          status: formStatus,
+          department: formDepartment,
+          technician: formTechnician,
+          user: formUser,
+        }),
+      });
+      showToast("Site updated successfully!");
+      setIsEditModalOpen(false);
+      await fetchSites();
+    } catch (err) {
+      console.error(err);
+      showToast("Error updating site.", "error");
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
+
+  const handleDeleteConfirm = async () => {
+    if (!activeSite) return;
+    setIsSavingDelete(true);
+    try {
+      const res = await apiFetch(`/api/admin/sites/${activeSite.id}`, {
+        method: "DELETE"
+      });
+
+      if (res.ok) {
+        await fetchSites();
+        setIsDeleteModalOpen(false);
+        setActiveSite(null);
+        showToast("Site removed successfully!");
+      } else {
+        showToast("Failed to delete site.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error deleting site.", "error");
+    } finally {
+      setIsSavingDelete(false);
+    }
+  };
+
+  /* ── Skeleton ── */
+  if (isLoading) {
+    return (
+      <AdminLayout
+        title="Registered Facility Sites"
+        subtitle="Register, update, and manage operational sites A-E and client headcounts"
+      >
+        <div className="max-w-7xl pb-2 space-y-6 animate-pulse">
+          {/* Action bar skeleton */}
+          <div className="flex justify-end">
+            <div className="h-9 w-32 bg-gray-200 rounded-xl" />
+          </div>
+          {/* Table skeleton */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="h-20 bg-gray-200 w-full" />
+            <div className="p-6 space-y-4">
+              <div className="hidden md:grid grid-cols-6 gap-4 pb-2 border-b border-gray-100">
+                {[...Array(6)].map((_, i) => <div key={i} className="h-3 bg-gray-200 rounded-full" />)}
+              </div>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="grid grid-cols-6 gap-4">
+                  <div className="h-4 bg-gray-200 rounded-full col-span-2" />
+                  <div className="h-4 bg-gray-200 rounded-full col-span-2" />
+                  <div className="h-4 bg-gray-200 rounded-full" />
+                  <div className="h-4 bg-gray-200 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Department Table skeleton */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-8">
+            <div className="h-[76px] bg-gray-200 w-full" />
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-1 bg-gray-50/50 p-5 rounded-2xl border border-gray-200 h-fit space-y-4">
+                <div className="h-4 bg-gray-200 rounded-full w-40" />
+                <div className="h-10 bg-gray-200 rounded-xl w-full" />
+                <div className="h-6 bg-gray-200 rounded-full w-full mt-2" />
+                <div className="h-10 bg-gray-200 rounded-xl w-full mt-2" />
+              </div>
+              <div className="md:col-span-2 overflow-x-auto">
+                <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-100">
+                  <div className="h-3 bg-gray-200 rounded-full col-span-2" />
+                  <div className="h-3 bg-gray-200 rounded-full" />
+                  <div className="h-3 bg-gray-200 rounded-full" />
+                </div>
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="grid grid-cols-4 gap-4 py-4 border-b border-gray-50">
+                    <div className="h-4 bg-gray-200 rounded-full col-span-2" />
+                    <div className="h-5 bg-gray-200 rounded-full w-16" />
+                    <div className="flex gap-2">
+                      <div className="h-8 w-8 bg-gray-200 rounded-xl" />
+                      <div className="h-8 w-8 bg-gray-200 rounded-xl" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout
@@ -193,27 +532,32 @@ export default function AdministrationSitesPage() {
           </button>
         </div>
 
+        {/* Tab Filters (Active vs Archived) */}
+        <div className="flex items-center gap-2 mb-4 bg-gray-100/80 p-1.5 rounded-2xl w-fit border border-gray-200/70">
+          <button
+            onClick={() => { setActiveTab("active"); setCurrentPage(1); }}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border-none ${
+              activeTab === "active"
+                ? "bg-[#D12031] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+            }`}
+          >
+            Active Sites ({activeSites.length})
+          </button>
+          <button
+            onClick={() => { setActiveTab("archived"); setCurrentPage(1); }}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border-none ${
+              activeTab === "archived"
+                ? "bg-[#D12031] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+            }`}
+          >
+            Archived / Inactive ({archivedSites.length})
+          </button>
+        </div>
+
         {/* Sites list grid */}
-        {sites.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center py-20 px-6 bg-white border border-gray-200 rounded-3xl shadow-sm max-w-xl mx-auto space-y-5 animate-[fadeIn_0.3s_ease] mt-8">
-            <div className="w-16 h-16 rounded-2xl bg-red-50 text-[#D12031] flex items-center justify-center shadow-inner">
-              <FiMapPin size={30} />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-[17px] font-bold text-gray-900">No Facility Sites Registered</h3>
-              <p className="text-[12.5px] text-gray-500 max-w-sm leading-relaxed font-semibold">
-                There are currently no facility sites registered in the control panel. Click the button below to register your first operational site.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenAddModal}
-              className="px-6 py-3 bg-[#D12031] hover:bg-[#a81828] text-white font-extrabold text-[12.5px] rounded-xl cursor-pointer transition-all shadow-md active:scale-95 border-none"
-            >
-              Register First Site
-            </button>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
             {/* Table Header Banner */}
             <div className="bg-[#D12031] px-6 py-5 text-white flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
@@ -223,24 +567,32 @@ export default function AdministrationSitesPage() {
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-xs px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-black self-start sm:self-auto uppercase tracking-wider">
-                Total Sites: {sites.length}
+                Total Sites: {filteredSites.length}
               </div>
             </div>
 
             {/* Mobile View (Stacked Cards) */}
             <div className="block md:hidden p-4 space-y-4 bg-gray-50/50">
-              {sites.map((site) => (
+              {sites.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center py-12 px-6 bg-white border border-gray-200 rounded-2xl shadow-sm space-y-4">
+                  <div className="w-12 h-12 rounded-xl bg-red-50 text-[#D12031] flex items-center justify-center shadow-inner">
+                    <FiMapPin size={24} />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-gray-900">No Sites Found</h3>
+                </div>
+              ) : (
+                sites.map((site) => (
                 <div
                   key={site.id}
                   className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative hover:shadow-sm transition-all"
                 >
                   <div className="flex justify-between items-start gap-2 mb-3.5">
                     <div>
-                      <span className="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider block">
-                        {site.department}
+                      <span className="text-[9px] text-gray-400 font-extrabold uppercase block">
+                        {site.department || "N/A"}
                       </span>
                       <h4 className="text-[14px] font-black text-gray-900 leading-tight mt-0.5">
-                        {site.name}
+                        {site.name || "N/A"}
                       </h4>
                     </div>
                     <span
@@ -259,16 +611,16 @@ export default function AdministrationSitesPage() {
                   <div className="space-y-3 text-xs font-semibold text-gray-500 mb-4 border-t border-gray-100 pt-3">
                     <div className="flex items-center gap-1.5">
                       <FiMapPin className="text-gray-400 shrink-0" size={13} />
-                      <span className="text-gray-700 truncate">{site.address}</span>
+                      <span className="text-gray-700 truncate">{site.address || "N/A"}</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-150">
+                    <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
                       <div>
                         <span className="text-[9px] text-gray-400 uppercase block font-extrabold tracking-wider">
                           Technician
                         </span>
                         <span className="text-gray-800 font-bold text-[11px] block mt-0.5 truncate">
-                          {site.technician}
+                          {site.technician || "N/A"}
                         </span>
                       </div>
                       <div>
@@ -276,7 +628,7 @@ export default function AdministrationSitesPage() {
                           User Assignment
                         </span>
                         <span className="text-gray-800 font-bold text-[11px] block mt-0.5 truncate">
-                          {site.user}
+                          {site.user || "N/A"}
                         </span>
                       </div>
                     </div>
@@ -299,14 +651,15 @@ export default function AdministrationSitesPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
 
             {/* Desktop View (Table) */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-[10.5px] font-black uppercase tracking-wider border-b border-gray-150">
+                  <tr className="bg-gray-50 text-gray-500 text-[10.5px] font-black uppercase tracking-wider border-b border-gray-200">
                     <th className="py-4.5 px-6">Site Name & Dept</th>
                     <th className="py-4.5 px-6">Location Address</th>
                     <th className="py-4.5 px-6">Technician Assigned</th>
@@ -315,8 +668,31 @@ export default function AdministrationSitesPage() {
                     <th className="py-4.5 px-6 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-150 text-[13px] text-gray-700 font-semibold">
-                  {displayedSites.map((site) => (
+                <tbody className="divide-y divide-gray-100 text-[13px] text-gray-700 font-semibold">
+                  {filteredSites.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-20 text-center">
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                          <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#D12031] flex items-center justify-center shadow-inner">
+                            <FiMapPin size={26} />
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-[16px] font-bold text-gray-900">No Facility Sites Registered</h3>
+                            <p className="text-[12px] text-gray-500 max-w-sm mx-auto font-medium">
+                              There are currently no facility sites registered in the control panel.
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleOpenAddModal}
+                            className="px-5 py-2 mt-2 bg-[#D12031] hover:bg-[#a81828] text-white font-bold text-[11px] rounded-lg cursor-pointer transition-all shadow-md active:scale-95 border-none"
+                          >
+                            Register First Site
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedSites.map((site) => (
                     <tr
                       key={site.id}
                       className="hover:bg-gray-55/40 transition-colors duration-150"
@@ -324,10 +700,10 @@ export default function AdministrationSitesPage() {
                       <td className="py-4 px-6">
                         <div>
                           <span className="font-black text-gray-900 block text-[14px] leading-tight">
-                            {site.name}
+                            {site.name || "N/A"}
                           </span>
                           <span className="text-[10px] text-gray-400 font-extrabold block mt-1 uppercase tracking-wider">
-                            {site.department}
+                            {site.department || "N/A"}
                           </span>
                         </div>
                       </td>
@@ -335,20 +711,20 @@ export default function AdministrationSitesPage() {
                         <div className="flex items-center gap-1.5 text-gray-500 max-w-[200px] xl:max-w-[260px]">
                           <FiMapPin className="text-gray-400 shrink-0" size={13} />
                           <span className="truncate text-xs font-semibold" title={site.address}>
-                            {site.address}
+                            {site.address || "N/A"}
                           </span>
                         </div>
                       </td>
                       <td className="py-4 px-6 text-xs text-gray-500 font-semibold">
                         <div className="flex items-center gap-1.5">
                           <FiUser className="text-gray-450 shrink-0" size={13} />
-                          <span className="text-gray-800 font-bold">{site.technician}</span>
+                          <span className="text-gray-800 font-bold">{site.technician || "N/A"}</span>
                         </div>
                       </td>
                       <td className="py-4 px-6 text-xs text-gray-500 font-semibold">
                         <div className="flex items-center gap-1.5">
                           <FiUsers className="text-gray-450 shrink-0" size={13} />
-                          <span className="text-gray-800 font-bold">{site.user}</span>
+                          <span className="text-gray-800 font-bold">{site.user || "N/A"}</span>
                         </div>
                       </td>
                       <td className="py-4 px-6 text-center">
@@ -366,31 +742,44 @@ export default function AdministrationSitesPage() {
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="flex justify-end items-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenEditModal(site)}
-                            className="p-2.5 hover:bg-gray-150 rounded-xl text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
-                            title="Edit Site Details"
-                          >
-                            <FiEdit size={14.5} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenDeleteModal(site)}
-                            className="p-2.5 hover:bg-red-50 rounded-xl text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
-                            title="Delete Site"
-                          >
-                            <FiTrash2 size={14.5} />
-                          </button>
+                          {activeTab === "archived" ? (
+                            <button
+                              onClick={() => confirmRestoreSite(site)}
+                              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-100 cursor-pointer"
+                              title="Restore Facility Site"
+                            >
+                              <FiRotateCcw size={13} />
+                              <span>Restore</span>
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditModal(site)}
+                                className="p-2.5 hover:bg-gray-150 rounded-xl text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer"
+                                title="Edit Site Details"
+                              >
+                                <FiEdit size={14.5} />
+                              </button>
+                              <button
+                                onClick={() => handleOpenDeleteModal(site)}
+                                className="p-2.5 hover:bg-red-50 rounded-xl text-[#D12031]/85 hover:text-[#D12031] transition-colors border-none cursor-pointer"
+                                title="Archive / Delete Site"
+                              >
+                                <FiTrash2 size={14.5} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
 
             {/* Desktop Pagination Controls */}
             {totalPages > 1 && (
-              <div className="hidden md:flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-150">
+              <div className="hidden md:flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
                 <span className="text-xs text-gray-500 font-semibold">
                   Showing <span className="font-bold text-gray-900">{Math.min((activePage - 1) * itemsPerPage + 1, sites.length)}</span> to{" "}
                   <span className="font-bold text-gray-900">{Math.min(activePage * itemsPerPage, sites.length)}</span> of{" "}
@@ -428,7 +817,147 @@ export default function AdministrationSitesPage() {
               </div>
             )}
           </div>
-        )}
+
+        {/* --- DEPARTMENTS MANAGEMENT SECTION --- */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-[fadeIn_0.3s_ease]">
+          <div className="bg-[#D12031] px-6 py-5 text-white">
+            <h3 className="text-[16px] font-bold tracking-wide">Department Management</h3>
+            <p className="text-[11.5px] text-white/90 font-medium mt-0.5">
+              Create and manage departments to assign them to your facility sites.
+            </p>
+          </div>
+          
+          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-1 bg-gray-50/50 p-5 rounded-2xl border border-gray-200 shadow-xs h-fit">
+              <h4 className="text-[13px] font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <FiPlus className="text-[#D12031]" />
+                Create New Department
+              </h4>
+              <form onSubmit={handleAddDepartment} className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-700 mb-1">Department Name <span className="text-[#D12031]">*</span></label>
+                  <input 
+                    type="text" required placeholder="e.g. Maintenance" value={deptFormName} onChange={e => setDeptFormName(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-xs text-gray-800 outline-none focus:border-[#D12031]"
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <label className="text-[11px] font-bold text-gray-700">Status</label>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold ${deptFormIsActive ? "text-emerald-600" : "text-gray-400"}`}>
+                      {deptFormIsActive ? "Active" : "Inactive"}
+                    </span>
+                    <div
+                      onClick={() => setDeptFormIsActive(!deptFormIsActive)}
+                      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${
+                        deptFormIsActive ? "bg-emerald-500" : "bg-gray-300"
+                      }`}
+                    >
+                      <div
+                        className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                          deptFormIsActive ? "translate-x-4.5" : "translate-x-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button type="submit" disabled={isSavingDept} className="w-full bg-[#D12031] hover:bg-[#b91c2c] text-white py-2.5 rounded-xl font-bold text-xs flex justify-center items-center gap-1.5 transition-colors cursor-pointer border-none shadow-sm disabled:opacity-70 mt-2">
+                  {isSavingDept ? "Creating..." : "Create Department"}
+                </button>
+              </form>
+            </div>
+
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-1.5 bg-gray-100/80 p-1 rounded-xl w-fit border border-gray-200/60 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveDeptTab("active")}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border-none ${
+                    activeDeptTab === "active"
+                      ? "bg-[#D12031] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Active ({activeDepartments.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveDeptTab("archived")}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border-none ${
+                    activeDeptTab === "archived"
+                      ? "bg-[#D12031] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Archived ({archivedDepartments.length})
+                </button>
+              </div>
+
+              <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="py-3 px-5 text-[10px] font-black uppercase text-gray-500 tracking-wider">Department Name</th>
+                      <th className="py-3 px-5 text-[10px] font-black uppercase text-gray-500 tracking-wider">Status</th>
+                      <th className="py-3 px-5 text-[10px] font-black uppercase text-gray-500 tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {isDeptLoading ? (
+                      [...Array(3)].map((_, i) => (
+                        <tr key={i} className="animate-pulse border-b border-gray-100">
+                          <td className="py-3 px-5"><div className="h-4 bg-gray-200 rounded-md w-36" /></td>
+                          <td className="py-3 px-5"><div className="h-4 bg-gray-200 rounded-md w-14" /></td>
+                          <td className="py-3 px-5 text-right"><div className="h-4 bg-gray-200 rounded-md w-12 ml-auto" /></td>
+                        </tr>
+                      ))
+                    ) : displayedDepartments.length === 0 ? (
+                      <tr><td colSpan={3} className="py-6 text-center text-xs text-gray-500 font-semibold">
+                        {activeDeptTab === "active" ? "No active departments created yet." : "No archived departments."}
+                      </td></tr>
+                    ) : (
+                      displayedDepartments.map(dept => (
+                        <tr key={dept.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-5">
+                            <div className="font-bold text-gray-900 text-[13px]">{dept.name}</div>
+                          </td>
+                          <td className="py-3 px-5">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${
+                              dept.isActive !== false ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-gray-100 text-gray-500 border border-gray-200"
+                            }`}>
+                              {dept.isActive !== false ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-5 text-right">
+                            {activeDeptTab === "archived" ? (
+                              <button
+                                onClick={() => confirmRestoreDepartment(dept)}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-colors border border-emerald-100 cursor-pointer"
+                                title="Restore Department"
+                              >
+                                <FiRotateCcw size={12} />
+                                <span>Restore</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button onClick={() => handleOpenEditDeptModal(dept)} className="p-2 hover:bg-gray-150 rounded-lg text-gray-600 hover:text-gray-800 transition-colors border-none cursor-pointer" title="Edit Department">
+                                  <FiEdit size={14} />
+                                </button>
+                                <button onClick={() => confirmDeleteDept(dept)} className="p-2 hover:bg-red-50 rounded-lg text-[#D12031]/80 hover:text-[#D12031] transition-colors border-none cursor-pointer" title="Archive / Delete Department">
+                                  <FiTrash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
 
       </div>
 
@@ -443,7 +972,7 @@ export default function AdministrationSitesPage() {
 
             <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Site Name *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Site Name <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -455,7 +984,7 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Location Address *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Location Address <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
@@ -467,39 +996,61 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Maintenance & Ops"
+                <label className="block text-[11px] font-bold text-gray-700">Department</label>
+                <select
                   value={formDepartment}
                   onChange={(e) => setFormDepartment(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                />
+                >
+                  <option value="">
+                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department (Optional) --"}
+                  </option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Karl Smith"
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Assigned</label>
+                  <select
                     value={formTechnician}
                     onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {technicianUsers.length === 0 ? "-- No technicians available --" : "-- Select Technician (Optional) --"}
+                    </option>
+                    {formTechnician && !technicianUsers.some(u => u.name === formTechnician || u.email === formTechnician) && (
+                      <option value={formTechnician}>{formTechnician}</option>
+                    )}
+                    {technicianUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Maurice Maldonado"
+                  <label className="block text-[11px] font-bold text-gray-700">User Assigned</label>
+                  <select
                     value={formUser}
                     onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {regularUsers.length === 0 ? "-- No users available --" : "-- Select User (Optional) --"}
+                    </option>
+                    {formUser && !regularUsers.some(u => u.name === formUser || u.email === formUser) && (
+                      <option value={formUser}>{formUser}</option>
+                    )}
+                    {regularUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email} {u.role ? `(${u.role})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -520,15 +1071,19 @@ export default function AdministrationSitesPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                  disabled={isSavingAdd}
+                  className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                  disabled={isSavingAdd}
+                  className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                 >
-                  Register Site
+                  {isSavingAdd ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Registering...</>
+                  ) : "Register Site"}
                 </button>
               </div>
             </form>
@@ -547,10 +1102,11 @@ export default function AdministrationSitesPage() {
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Site Name *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Site Name <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Site F"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
@@ -558,10 +1114,11 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Location Address *</label>
+                <label className="block text-[11px] font-bold text-gray-700">Location Address <span className="text-[#D12031]">*</span></label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. 100 Cardinal Way"
                   value={formAddress}
                   onChange={(e) => setFormAddress(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
@@ -569,36 +1126,61 @@ export default function AdministrationSitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-700">Department *</label>
-                <input
-                  type="text"
-                  required
+                <label className="block text-[11px] font-bold text-gray-700">Department</label>
+                <select
                   value={formDepartment}
                   onChange={(e) => setFormDepartment(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                />
+                >
+                  <option value="">
+                    {departments.length === 0 ? "-- No departments available --" : "-- Select Department (Optional) --"}
+                  </option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Technician Site *</label>
-                  <input
-                    type="text"
-                    required
+                  <label className="block text-[11px] font-bold text-gray-700">Technician Assigned</label>
+                  <select
                     value={formTechnician}
                     onChange={(e) => setFormTechnician(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {technicianUsers.length === 0 ? "-- No technicians available --" : "-- Select Technician (Optional) --"}
+                    </option>
+                    {formTechnician && !technicianUsers.some(u => u.name === formTechnician || u.email === formTechnician) && (
+                      <option value={formTechnician}>{formTechnician}</option>
+                    )}
+                    {technicianUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-gray-700">User Site *</label>
-                  <input
-                    type="text"
-                    required
+                  <label className="block text-[11px] font-bold text-gray-700">User Assigned</label>
+                  <select
                     value={formUser}
                     onChange={(e) => setFormUser(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
-                  />
+                  >
+                    <option value="">
+                      {regularUsers.length === 0 ? "-- No users available --" : "-- Select User (Optional) --"}
+                    </option>
+                    {formUser && !regularUsers.some(u => u.name === formUser || u.email === formUser) && (
+                      <option value={formUser}>{formUser}</option>
+                    )}
+                    {regularUsers.map((u) => (
+                      <option key={u.id} value={u.name || u.email}>
+                        {u.name || u.email} {u.role ? `(${u.role})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -619,15 +1201,19 @@ export default function AdministrationSitesPage() {
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                  disabled={isSavingEdit}
+                  className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                  disabled={isSavingEdit}
+                  className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                 >
-                  Save changes
+                  {isSavingEdit ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                  ) : "Save changes"}
                 </button>
               </div>
             </form>
@@ -651,15 +1237,54 @@ export default function AdministrationSitesPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                disabled={isSavingDelete}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none"
+                disabled={isSavingDelete}
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
               >
-                Remove
+                {isSavingDelete ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Removing...</>
+                ) : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ DELETE DEPARTMENT MODAL */}
+      {isDeleteDeptModalOpen && activeDeptToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-4 text-[#D12031]">
+              <FiTrash2 size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Department?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to delete the department &quot;{activeDeptToDelete.name}&quot;? This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteDeptModalOpen(false)}
+                disabled={isSavingDeleteDept}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteDepartment}
+                disabled={isSavingDeleteDept}
+                className="flex-1 py-2.5 bg-[#D12031] hover:bg-[#b91c2c] text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingDeleteDept ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</>
+                ) : "Delete"}
               </button>
             </div>
           </div>
@@ -668,9 +1293,149 @@ export default function AdministrationSitesPage() {
 
       {/* Toast message */}
       {toastMsg && (
-        <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border border-emerald-500/20 animate-toast-in">
-          <FiCheck size={18} className="text-emerald-100" />
+        <div className={`fixed top-24 right-6 z-50 px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold border animate-toast-in ${
+          toastType === "error"
+            ? "bg-red-600 text-white border-red-500/20"
+            : "bg-emerald-600 text-white border-emerald-500/20"
+        }`}>
+          <FiCheck size={18} className="opacity-90" />
           <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* 📝 EDIT DEPARTMENT MODAL */}
+      {isEditDeptModalOpen && activeDept && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col border border-gray-100">
+            <div className="px-6 py-5 border-b border-gray-100 text-center">
+              <h3 className="text-[17px] font-bold text-gray-900">Edit Department</h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">Modify details for {activeDept.name}</p>
+            </div>
+
+            <form onSubmit={handleEditDepartmentSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-gray-700">Department Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editDeptFormName}
+                  onChange={(e) => setEditDeptFormName(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs text-gray-800 outline-none focus:border-[#D12031]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <label className="text-[11px] font-bold text-gray-700">Status</label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold ${editDeptFormIsActive ? "text-emerald-600" : "text-gray-400"}`}>
+                    {editDeptFormIsActive ? "Active" : "Inactive"}
+                  </span>
+                  <div
+                    onClick={() => setEditDeptFormIsActive(!editDeptFormIsActive)}
+                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${
+                      editDeptFormIsActive ? "bg-emerald-500" : "bg-gray-300"
+                    }`}
+                  >
+                    <div
+                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                        editDeptFormIsActive ? "translate-x-4.5" : "translate-x-0"
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditDeptModalOpen(false)}
+                  disabled={isSavingEditDept}
+                  className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEditDept}
+                  className="flex-1 py-2.5 bg-[#D12031] text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isSavingEditDept ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                  ) : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 RESTORE SITE MODAL */}
+      {isRestoreSiteModalOpen && activeSiteToRestore && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4 text-emerald-600">
+              <FiRotateCcw size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Restore Facility Site?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to restore facility site &quot;{activeSiteToRestore.name}&quot; back to Operational status?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsRestoreSiteModalOpen(false)}
+                disabled={isSavingRestoreSite}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestoreSiteConfirm}
+                disabled={isSavingRestoreSite}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingRestoreSite ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Restoring...</>
+                ) : "Restore Site"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 RESTORE DEPARTMENT MODAL */}
+      {isRestoreDeptModalOpen && activeDeptToRestore && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-[380px] w-full shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4 text-emerald-600">
+              <FiRotateCcw size={24} />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Restore Department?</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-6 font-semibold">
+              Are you sure you want to restore department &quot;{activeDeptToRestore.name}&quot; back to Active status?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsRestoreDeptModalOpen(false)}
+                disabled={isSavingRestoreDept}
+                className="flex-1 py-2.5 border border-gray-200 bg-white text-gray-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestoreDeptConfirm}
+                disabled={isSavingRestoreDept}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSavingRestoreDept ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Restoring...</>
+                ) : "Restore Dept"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </AdminLayout>

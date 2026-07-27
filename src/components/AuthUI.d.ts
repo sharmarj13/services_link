@@ -1,4 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from "react";
+
 // Type declarations for AuthUI components
 export const AuthLayout: React.ComponentType<React.PropsWithChildren<{ bgImage?: string }>>;
 export const Logo: React.ComponentType;

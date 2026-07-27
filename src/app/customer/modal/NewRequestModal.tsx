@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FiCalendar, FiTrash2, FiCheck } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
+import { toast } from "react-hot-toast";
+import { apiFetch } from "@/lib/apiFetch";
+import { API_BASE_URL } from "@/config";
 
 export interface CustomerRequestDetail {
   id: string;
@@ -38,10 +41,11 @@ export interface CustomerRequestDetail {
 interface NewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (newRequest: CustomerRequestDetail) => void;
+  onSubmit: (createdRequest: Record<string, unknown>) => void;
+  siteId: string;
 }
 
-export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewRequestModalProps) {
+export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: NewRequestModalProps) {
   const [reqTitle, setReqTitle] = useState("");
   const [detailedDesc, setDetailedDesc] = useState("");
   const [scopeOfWork, setScopeOfWork] = useState("");
@@ -52,12 +56,77 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
   const [category, setCategory] = useState("Cleaning");
   const [department, setDepartment] = useState("None");
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingDepts, setIsFetchingDepts] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState<{id: string, name: string}[]>([]);
+
+  useEffect(() => {
+    if (isOpen && siteId) {
+      const fetchDepartments = async () => {
+        setIsFetchingDepts(true);
+        try {
+          const res = await apiFetch(`/api/sites/${siteId}/departments`);
+          if (res.ok) {
+            const data = await res.json();
+            setDepartmentsList(data.data || []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch departments", err);
+        } finally {
+          setIsFetchingDepts(false);
+        }
+      };
+      fetchDepartments();
+    }
+  }, [isOpen, siteId]);
 
   if (!isOpen) return null;
 
   const handlePhotoUpload = () => {
-    // Simulated upload - matching the design
-    setUploadedPhotos((prev) => [...prev, "/images/onbording-background.png"]);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError("");
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await apiFetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Assuming backend running locally on 5000 and proxy handles /api/upload
+          // But for static /uploads it might need API_BASE_URL
+          setUploadedPhotos((prev) => [...prev, `${API_BASE_URL}${data.url}`]);
+        } else {
+          console.error("Failed to upload photo");
+          setError("Failed to upload one or more photos.");
+        }
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError((err as any).message || "An error occurred while uploading photos.");
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -75,58 +144,70 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
     setCategory("Cleaning");
     setDepartment("None");
     setUploadedPhotos([]);
+    setError("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reqTitle.trim() || !detailedDesc.trim()) return;
+    setError("");
 
-    const newId = String(Math.floor(10000 + Math.random() * 90000));
-    const resolvedLocation =
-      siteLocation.trim() ||
-      (department !== "None" ? `${department} Floor` : "Facility Area 1A");
+    if (!reqTitle.trim()) {
+      toast.error("Request Title is required.");
+      return;
+    }
+    if (!detailedDesc.trim()) {
+      toast.error("Detailed Description is required.");
+      return;
+    }
+    if (!siteId) {
+      toast.error("User Site ID is not initialized. Please refresh and try again.");
+      return;
+    }
 
-    const fullDetail = {
-      id: newId,
-      title: reqTitle.trim(),
-      status: "Assigned",
-      customer: "Maurice Maldonado",
-      siteLocation: resolvedLocation,
-      department: department !== "None" ? department : "General",
-      scheduleDate: dueDate
-        ? new Date(dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-        : "TBD",
-      poNumber: `#PO-${Math.floor(100000 + Math.random() * 900000)}`,
-      assetId: "N/A",
-      scopeOfWork: scopeOfWork.trim() || detailedDesc.trim(),
-      detailedDescription: detailedDesc.trim(),
-      contactName: "James Brennan",
-      contactRole: "Facility Manager",
-      contactInitials: "JB",
-      attachments: uploadedPhotos.length > 0 ? uploadedPhotos : [],
-      workType: "Routine",
-      workType2: "Recyclable",
-      priority: priority,
-      duration: "TBD",
-      unit: "Select unit",
-      quantity: "0.00",
-      category: category,
-      ppeUsed: [],
-      additionalNotes: additionalNotes.trim(),
-      beforePhotos: [],
-      afterPhotos: [],
-    };
+    setIsLoading(true);
 
-    // Save to localStorage
     try {
-      const existing = JSON.parse(localStorage.getItem("customerRequests") || "[]");
-      existing.unshift(fullDetail);
-      localStorage.setItem("customerRequests", JSON.stringify(existing));
-    } catch {}
+      const resolvedLocation =
+        siteLocation.trim() ||
+        (department !== "None" ? `${department} Floor` : null);
 
-    onSubmit(fullDetail);
-    resetForm();
-    onClose();
+      const response = await apiFetch("/api/work-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          siteId: siteId,
+          title: reqTitle.trim(),
+          description: detailedDesc.trim(),
+          category: category.toLowerCase(),
+          priority: priority.toLowerCase(),
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+          scopeOfWork: scopeOfWork.trim(),
+          referencePhotoUrls: uploadedPhotos.length > 0 ? uploadedPhotos : null,
+          location: resolvedLocation,
+          department: department !== "None" ? department : null,
+          additionalNotes: additionalNotes.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        const errMsg = errData.message || "Failed to create work request. Check details.";
+        toast.error(errMsg);
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      toast.success("Work Request submitted successfully!");
+      onSubmit(data);
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error("Submit request error:", err);
+      const errMsg = (err as any).message || "Server connection failed. Make sure the backend is running.";
+      toast.error(errMsg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -135,10 +216,12 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 text-center shrink-0">
           <h3 className="text-[20px] font-bold text-gray-900">New Work Request</h3>
-          <p className="text-[13px] text-gray-500 mt-1 font-medium">
+          <p className="text-[13px] text-gray-550 mt-1 font-medium">
             Fill out the form below to submit a new work request.
           </p>
         </div>
+
+
 
         {/* Form Fields */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -258,7 +341,10 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
               >
                 <option>Cleaning</option>
                 <option>Maintenance</option>
-                <option>Safety</option>
+                <option>Repairs</option>
+                <option>Landscaping</option>
+                <option>Security</option>
+                <option>Other</option>
               </select>
             </div>
           </div>
@@ -271,65 +357,101 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit }: NewReques
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-955 outline-none focus:border-[#D12031] focus:ring-1 focus:ring-[#D12031] transition-all"
+              disabled={isFetchingDepts}
+              className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-955 outline-none focus:border-[#D12031] focus:ring-1 focus:ring-[#D12031] transition-all disabled:opacity-50"
             >
-              <option>None</option>
-              <option>Kitchen</option>
-              <option>Lobby</option>
-              <option>Restrooms</option>
-              <option>Maintenance</option>
-              <option>Bedroom</option>
+              {isFetchingDepts ? (
+                <option value="None">Loading departments...</option>
+              ) : departmentsList.length === 0 ? (
+                <>
+                  <option value="None">None</option>
+                  <option disabled>No departments found</option>
+                </>
+              ) : (
+                <>
+                  <option value="None">None</option>
+                  {departmentsList.map((dept) => (
+                    <option key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
-          {/* Photo Upload zone */}
-          <div className="space-y-2">
-            <label className="block text-[13px] font-bold text-gray-700">
-              Attach Reference Photos (Optional)
-            </label>
-            <div
-              onClick={handlePhotoUpload}
-              className="border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-2xl p-6 bg-red-50/5 hover:bg-red-50/10 cursor-pointer text-center flex flex-col items-center justify-center transition-all group"
-            >
-              <HiOutlineUpload size={28} className="text-[#D12031] mb-2 group-hover:scale-110 transition-transform duration-200" />
-              <span className="text-xs font-bold text-gray-800">Click to upload or drag and drop</span>
-            </div>
-
-            {uploadedPhotos.length > 0 && (
-              <div className="grid grid-cols-5 gap-2.5 pt-2">
-                {uploadedPhotos.map((src, i) => (
-                  <div key={i} className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-xs group/item">
-                    <Image src={src} alt="Uploaded" fill className="object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(i)}
-                      className="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 flex items-center justify-center text-white transition-opacity duration-150 rounded-xl border-none cursor-pointer"
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
-                  </div>
-                ))}
+            {/* Photo Upload zone */}
+            <div className="space-y-2">
+              <label className="block text-[13px] font-bold text-gray-700">
+                Attach Reference Photos (Optional)
+              </label>
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                multiple
+                className="hidden" 
+              />
+              <div
+                onClick={handlePhotoUpload}
+                className={`border-2 border-dashed border-red-200 hover:border-[#D12031] rounded-2xl p-6 bg-red-50/5 hover:bg-red-50/10 cursor-pointer text-center flex flex-col items-center justify-center transition-all group ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <HiOutlineUpload size={28} className="text-[#D12031] mb-2 group-hover:scale-110 transition-transform duration-200" />
+                <span className="text-xs font-bold text-gray-800">
+                  {isUploading ? "Uploading..." : "Click to upload or drag and drop"}
+                </span>
               </div>
-            )}
-          </div>
-        </form>
+
+              {uploadedPhotos.length > 0 && (
+                <div className="grid grid-cols-5 gap-2.5 pt-2">
+                  {uploadedPhotos.map((src, i) => (
+                    <div key={i} className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-xs group/item">
+                      <img src={src} alt="Uploaded" className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(i)}
+                        className="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 flex items-center justify-center text-white transition-opacity duration-150 rounded-xl border-none cursor-pointer"
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </form>
 
         {/* Modal Actions */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
           <button
             type="button"
             onClick={() => { resetForm(); onClose(); }}
-            className="flex-1 py-3 px-4 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-sm rounded-xl transition-all cursor-pointer"
+            disabled={isLoading}
+            className="flex-1 py-3 px-4 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50"
           >
             Close
           </button>
           <button
             type="submit"
             onClick={handleSubmit}
-            className="flex-1 py-3 px-4 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
+            disabled={isLoading}
+            className="flex-1 py-3 px-4 bg-[#D12031] hover:bg-[#b81d2c] text-white font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FiCheck size={16} strokeWidth={3} />
-            Submit Request
+            {isLoading ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <FiCheck size={16} strokeWidth={3} />
+                Submit Request
+              </>
+            )}
           </button>
         </div>
       </div>

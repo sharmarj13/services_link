@@ -1,6 +1,7 @@
-"use client";
+"use client";;
+import { toast } from "react-hot-toast";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle,
   Clock,
@@ -17,6 +18,7 @@ import AddWorkLogModal, {
 } from "./components/AddWorkLogModal";
 import NoticeBroadcastModal from "./components/NoticeBroadcastModal";
 import JobDetailsModal from "./components/JobDetailsModal";
+import { apiFetch } from "@/lib/apiFetch";
 
 const INITIAL_FORM: WorkEntryForm = {
   requestTitle: "",
@@ -34,6 +36,8 @@ const INITIAL_FORM: WorkEntryForm = {
   quantity: "0.00",
   unit: "",
   additionalNotes: "",
+  beforePhotos: [],
+  afterPhotos: [],
 };
 
 interface Notice {
@@ -46,84 +50,235 @@ interface Notice {
   time: string;
 }
 
-const ASSIGNED_JOBS = [
-  {
-    id: "99402",
-    title: "HVAC Compressor Maintenance",
-    loc: "Facility Area 4B",
-    pri: "High",
-    badgeBg: "bg-red-50 text-red-700 border-red-200",
-    description: "Inspect the refrigeration compress unit in Facility Area 4B. Check for gaseous leaks, top-up lubricant level, and verify current draw parameters under high load.",
-    tools: ["Manifold Gauge Set", "Refrigerant Sniffer", "Fluke Clamp Multimeter", "PPE Level 2"],
-    estDuration: "90 min"
-  },
-  {
-    id: "99408",
-    title: "Routine Safety Inspection",
-    loc: "Main Assembly Floor",
-    pri: "Low",
-    badgeBg: "bg-amber-50 text-amber-700 border-amber-200",
-    description: "Conduct standard quarterly safety inspections of all primary and secondary egress channels, manual fire horn alarm pull-points, and eye-wash basin stations.",
-    tools: ["Pressure Gauge Calibrator", "Standard Screwdriver", "Safety Hazard Warning Tape", "Decibel Meter"],
-    estDuration: "45 min"
-  },
-  {
-    id: "99412",
-    title: "Calibration Check: Unit 7",
-    loc: "Lab Section 1",
-    pri: "Medium",
-    badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    description: "Calibrate high-frequency thermostatic controllers on the bioreactor assembly in Lab Section 1. Sync parameter logs to server databases.",
-    tools: ["Digital Thermocouple Standard", "USB Ground Link Cable", "Vertex Calibration Kit"],
-    estDuration: "60 min"
-  },
-];
-
 export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<WorkEntryForm>(INITIAL_FORM);
   const [successToast, setSuccessToast] = useState(false);
-  const [completedRequests, setCompletedRequests] = useState(8);
-  const [assignedRequests, setAssignedRequests] = useState(2);
+  
+  // Real Data states
+  const [completedRequests, setCompletedRequests] = useState(0);
+  const [assignedRequests, setAssignedRequests] = useState(0);
+  const [analytics, setAnalytics] = useState({
+    totalCompletedCleanings: 0,
+    totalWasteCollected: 0,
+    avgDuration: 0,
+    wasteTypeBreakdown: [] as any[]
+  });
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  
+  // Loading states
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+
+  const [timeFilter, setTimeFilter] = useState("All Time");
+
   const [activeJobProgress, setActiveJobProgress] = useState(0); // 0=Assigned 1=Started 2=In-Progress 3=Completed
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   // States to add job details popups
-  const [selectedJob, setSelectedJob] = useState<typeof ASSIGNED_JOBS[0] | null>(null);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
 
   // Alert drawer display state (from Notice & Notify action button)
   const [isNotifyOpen, setIsNotifyOpen] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch functions
+  const fetchStats = useCallback(async () => {
+    setIsLoadingStats(true);
+    try {
+      const res = await apiFetch("/api/work-requests/tech/stats");
+      if (res.ok) {
+        const data = await res.json();
+        setCompletedRequests(data.completed || 0);
+        setAssignedRequests((data.inProgress || 0) + (data.pending || 0));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, []);
+
+  const fetchAnalytics = useCallback(async () => {
+    setIsLoadingAnalytics(true);
+    try {
+      const filter = timeFilter.toLowerCase().replace(" ", "-");
+      const res = await apiFetch(`/api/tech/comprehensive-stats?timeFilter=${filter}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  }, [timeFilter]);
+
+  const fetchActiveJobs = useCallback(async () => {
+    setIsLoadingJobs(true);
+    try {
+      const userRes = await apiFetch("/api/auth/me");
+      let currentUserId = null;
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        currentUserId = (userData.data?.user || userData.user)?.id;
+      }
+      
+      const res = await apiFetch("/api/work-requests/tech/all-sites?status=active");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          // Keep only jobs assigned to the current tech that are not completed
+          const myJobs = data.data.filter((j: any) => j.assignedEmployeeId === currentUserId && j.status !== 'completed');
+          setActiveJobs(myJobs);
+          
+          // Auto set active job if there's an in_progress job and no active job is selected
+          const inProgressJob = myJobs.find((j: any) => j.status === 'in_progress');
+          if (inProgressJob && !activeJobId) {
+            setActiveJobId(inProgressJob.id);
+            setActiveJobProgress(2);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingJobs(false);
+    }
+  }, [activeJobId]);
+
+  const fetchAssignedSites = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/sites/assigned");
+      if (res.ok) {
+        const data = await res.json();
+        setSites(data || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch assigned sites:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    fetchActiveJobs();
+    fetchAssignedSites();
+  }, [fetchStats, fetchActiveJobs, fetchAssignedSites]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCompletedRequests((p) => p + 1);
-    setIsModalOpen(false);
-    setFormData(INITIAL_FORM);
-    setSuccessToast(true);
-    // Reset active job after completing
-    setActiveJobProgress(0);
-    setActiveJobId(null);
-    setAssignedRequests((prev) => Math.max(0, prev - 1));
+    setIsSubmitting(true);
+
+    const categoryVal = formData.category.toLowerCase() === "safety" ? "other" : formData.category.toLowerCase();
+    const workTypeMap: Record<string, string> = {
+      "Routine": "routine",
+      "Emergency": "emergency",
+      "Preventative": "routine",
+    };
+    const workTypeVal = workTypeMap[formData.workType] || "routine";
+    
+    const unitMap: Record<string, string> = {
+      "lbs": "pounds",
+      "tons": "tons",
+      "kg": "pounds",
+    };
+    const wasteUnitVal = unitMap[formData.unit] || null;
+
+    let targetSiteId = formData.site;
+    const matchedSite = sites.find(s => s.id === formData.site || s.name === formData.site);
+    if (matchedSite) {
+      targetSiteId = matchedSite.id;
+    } else if (sites.length > 0) {
+      targetSiteId = sites[0].id;
+    }
+
+    const payload = {
+      siteId: targetSiteId,
+      title: formData.workTitle,
+      description: formData.detailedDescription,
+      category: categoryVal,
+      status: "completed",
+      priority: formData.priority.toLowerCase(),
+      workDate: new Date(formData.date || Date.now()).toISOString(),
+      plantName: matchedSite ? matchedSite.name : "Main Facility",
+      department: formData.department,
+      workType: workTypeVal,
+      wasteType: formData.wasteType || null,
+      wasteQuantity: formData.quantity || null,
+      wasteUnit: wasteUnitVal,
+      duration: parseInt(formData.duration) || null,
+      notes: formData.additionalNotes || null,
+      ppeUsed: formData.ppeUsed,
+      beforePhotoUrls: formData.beforePhotos || [],
+      afterPhotoUrls: formData.afterPhotos || [],
+    };
+
+    try {
+      const entryRes = await apiFetch("/api/work-entries", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (entryRes.ok) {
+        const newEntry = await entryRes.json();
+        
+        if (activeJobId) {
+          await apiFetch(`/api/work-requests/${activeJobId}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              status: "completed",
+              workEntryId: newEntry.id,
+            }),
+          });
+        }
+
+        setIsModalOpen(false);
+        setFormData(INITIAL_FORM);
+        setSuccessToast(true);
+
+        setActiveJobProgress(0);
+        setActiveJobId(null);
+
+        fetchStats();
+        fetchAnalytics();
+        fetchActiveJobs();
+      } else {
+        const errorData = await entryRes.json();
+        toast.error(`Failed to save work log: ${errorData.message || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Error submitting work entry:", err);
+      toast.error((err as any).message || "Failed to submit work log due to network or server error.");
+    } finally {
+      setIsSubmitting(false);
+    }
+    
     setTimeout(() => setSuccessToast(false), 4000);
   };
 
-  // Triggered when a progress stepper step circle is clicked
   const handleStepClick = (stepIndex: number) => {
     const nextStep = activeJobProgress + 1;
     if (stepIndex !== nextStep) return; // only the immediate next sequential step is clickable
     if (stepIndex === 3) {
       // Direct completion modal opening when clicking index 3 ("Completed")
-      // Pre-fill the work form with active job keys to make layout flow seamless
       if (activeJobId) {
-        const matchingJob = ASSIGNED_JOBS.find((j) => j.id === activeJobId);
+        const matchingJob = activeJobs.find((j) => j.id === activeJobId);
         if (matchingJob) {
           setFormData((prev: WorkEntryForm) => ({
             ...prev,
             requestTitle: REQUEST_TITLES.includes(matchingJob.title) ? matchingJob.title : "",
             workTitle: matchingJob.title,
-            detailedDescription: matchingJob.description,
-            site: "Site A",
-            department: matchingJob.loc,
+            detailedDescription: matchingJob.description || "",
+            site: matchingJob.siteId || "Site A",
+            department: matchingJob.department || "General",
           }));
         }
       }
@@ -133,15 +288,26 @@ export default function App() {
     }
   };
 
-  // Called when "Start Job" button is clicked
-  const handleStartJob = (jobId: string) => {
-    setActiveJobId(jobId);
-    setActiveJobProgress(1); // move straight to "Started" state
+  const handleStartJob = async (jobId: string) => {
+    try {
+      const res = await apiFetch(`/api/work-requests/${jobId}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: "in_progress" })
+      });
+      if (res.ok) {
+        setActiveJobId(jobId);
+        setActiveJobProgress(1); // Started state
+        fetchActiveJobs(); // refresh the list to reflect status changes
+      }
+    } catch (e) {
+      console.error(e);
+      // Fallback local update if API fails
+      setActiveJobId(jobId);
+      setActiveJobProgress(1); 
+    }
   };
 
   const stepLabels = ["Assigned", "Started", "In-Progress", "Completed"];
-
-  // Dynamic header titles based on current view
   const currentTitle = selectedJob || isNotifyOpen ? "Work Requests" : "Work Overview";
   const currentSubtitle = selectedJob || isNotifyOpen 
     ? "Manage your work requests and track their progress" 
@@ -153,6 +319,15 @@ export default function App() {
         <JobDetailsModal
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
+          onStartJob={(jobId) => {
+            handleStartJob(jobId);
+            setSelectedJob(null);
+          }}
+          onNoticeNotify={(jobId) => {
+            setActiveJobId(jobId);
+            setIsNotifyOpen(true);
+            setSelectedJob(null);
+          }}
         />
       ) : (
         <>
@@ -170,7 +345,11 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[52px] font-black text-slate-900 leading-none mt-8">
-                {String(completedRequests).padStart(2, "0")}
+                {isLoadingStats ? (
+                  <div className="h-[52px] w-24 bg-gray-200 rounded animate-pulse"></div>
+                ) : (
+                  String(completedRequests).padStart(2, "0")
+                )}
               </div>
             </div>
 
@@ -186,7 +365,11 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[52px] font-black text-slate-900 leading-none mt-8">
-                {String(assignedRequests).padStart(2, "0")}
+                {isLoadingStats ? (
+                  <div className="h-[52px] w-24 bg-gray-200 rounded animate-pulse"></div>
+                ) : (
+                  String(assignedRequests).padStart(2, "0")
+                )}
               </div>
             </div>
           </section>
@@ -211,7 +394,8 @@ export default function App() {
               <div className="relative inline-block self-start sm:self-center shrink-0">
                 <select
                   id="select-analytics-scope"
-                  defaultValue="All Time"
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
                   className="appearance-none bg-white border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-xs font-semibold text-slate-800 cursor-pointer outline-none hover:bg-slate-50 transition-colors shadow-sm"
                 >
                   <option value="All Time">All Time</option>
@@ -236,8 +420,14 @@ export default function App() {
                   <span className="text-[13px] font-bold text-slate-800">My Cleanings</span>
                 </div>
                 <div className="flex items-end justify-between mt-8">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">02</span>
-                  <span className="text-[11px] font-semibold text-slate-800 mb-1">All Time</span>
+                  {isLoadingAnalytics ? (
+                    <div className="h-[32px] w-16 bg-green-200 rounded animate-pulse"></div>
+                  ) : (
+                    <span className="text-[32px] font-black text-slate-900 leading-none">
+                      {String(analytics.totalCompletedCleanings).padStart(2, "0")}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-semibold text-slate-800 mb-1">{timeFilter}</span>
                 </div>
               </div>
 
@@ -253,8 +443,14 @@ export default function App() {
                   <span className="text-[13px] font-bold text-slate-800">Waste Collected</span>
                 </div>
                 <div className="flex items-end justify-between mt-8">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">01</span>
-                  <span className="text-[11px] font-semibold text-slate-800 mb-1">Various units combined</span>
+                  {isLoadingAnalytics ? (
+                    <div className="h-[32px] w-16 bg-yellow-200 rounded animate-pulse"></div>
+                  ) : (
+                    <span className="text-[32px] font-black text-slate-900 leading-none">
+                      {String(analytics.totalWasteCollected).padStart(2, "0")}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-semibold text-slate-800 mb-1">Total quantity</span>
                 </div>
               </div>
 
@@ -270,7 +466,13 @@ export default function App() {
                   <span className="text-[13px] font-bold text-slate-800">Avg Duration</span>
                 </div>
                 <div className="flex items-end justify-between mt-8">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">30m</span>
+                  {isLoadingAnalytics ? (
+                    <div className="h-[32px] w-20 bg-lime-200 rounded animate-pulse"></div>
+                  ) : (
+                    <span className="text-[32px] font-black text-slate-900 leading-none">
+                      {analytics.avgDuration > 0 ? `${analytics.avgDuration}m` : "N/A"}
+                    </span>
+                  )}
                   <span className="text-[11px] font-semibold text-slate-800 mb-1">Per cleaning task</span>
                 </div>
               </div>
@@ -293,24 +495,35 @@ export default function App() {
 
               {/* Grid holding 4 items */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { name: "Plastic", sub: "Collected in 3200 cleanings", val: "720 kg" },
-                  { name: "Organic", sub: "Collected in 4200 cleanings", val: "500 kg" },
-                  { name: "Paper", sub: "Collected in 1870 cleanings", val: "320 kg" },
-                  { name: "Plastic", sub: "Collected in 3200 cleanings", val: "720 kg" },
-                ].map((w, index) => (
-                  <div
-                    key={index}
-                    className="bg-white rounded-xl p-5 relative overflow-hidden flex items-center justify-between"
-                  >
-                    <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#D12031]"></div>
-                    <div className="min-w-0 pl-4 pr-3">
-                      <div className="text-[13px] font-bold text-slate-900 truncate leading-tight">{w.name}</div>
-                      <div className="text-[11px] text-slate-400 font-medium mt-1.5 leading-none">{w.sub}</div>
-                    </div>
-                    <div className="text-[15px] font-black text-slate-900 shrink-0">{w.val}</div>
+                {isLoadingAnalytics ? (
+                   Array(4).fill(0).map((_, i) => (
+                     <div key={i} className="bg-white rounded-xl p-5 relative overflow-hidden flex items-center justify-between h-[80px]">
+                       <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-gray-200 animate-pulse"></div>
+                       <div className="flex flex-col gap-2 w-full pl-4">
+                         <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                         <div className="h-3 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+                       </div>
+                     </div>
+                   ))
+                ) : analytics.wasteTypeBreakdown.length === 0 ? (
+                  <div className="col-span-1 md:col-span-2 text-center py-6 text-sm text-slate-400 font-medium bg-white rounded-xl border border-slate-100">
+                    No waste data found for {timeFilter.toLowerCase()}.
                   </div>
-                ))}
+                ) : (
+                  analytics.wasteTypeBreakdown.map((w, index) => (
+                    <div
+                      key={index}
+                      className="bg-white rounded-xl p-5 relative overflow-hidden flex items-center justify-between"
+                    >
+                      <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#D12031]"></div>
+                      <div className="min-w-0 pl-4 pr-3">
+                        <div className="text-[13px] font-bold text-slate-900 truncate leading-tight">{w.wasteType}</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-1.5 leading-none">Collected in {w.count} cleanings</div>
+                      </div>
+                      <div className="text-[15px] font-black text-slate-900 shrink-0">{w.totalQuantity} {w.unit}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </section>
@@ -318,10 +531,10 @@ export default function App() {
           {/* ⚡ MY ACTIVE JOB PANEL */}
           <section
             id="card-active-job"
-            className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs mb-8"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xs mb-8 relative z-10"
           >
             {/* Header Ribbon bar */}
-            <div className="bg-[#D12031] px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white">
+            <div className="bg-[#D12031] px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white rounded-t-2xl">
               <div>
                 <h3 className="text-[15px] font-bold tracking-wide">
                   My Active Job
@@ -330,20 +543,43 @@ export default function App() {
                   In-Progress work requests assigned to you
                 </p>
               </div>
-              <button
-                id="btn-active-notify"
-                onClick={() => setIsNotifyOpen(true)}
-                className="self-start sm:self-center px-5 py-2.5 bg-white text-[#D12031] hover:bg-red-50 font-bold text-xs rounded-lg transition-colors shadow-sm cursor-pointer"
-              >
-                Notice &amp; Notify
-              </button>
+              <div className="relative group self-start sm:self-center">
+                <button
+                  id="btn-active-notify"
+                  disabled={activeJobs.length === 0}
+                  onClick={() => {
+                    if (activeJobs.length === 0) return;
+                    if (!activeJobId && activeJobs.length > 0) {
+                      setActiveJobId(activeJobs[0].id);
+                    }
+                    setIsNotifyOpen(true);
+                  }}
+                  className={`px-5 py-2.5 font-bold text-xs rounded-lg transition-all shadow-sm ${
+                    activeJobs.length === 0
+                      ? "bg-white/70 text-gray-400 cursor-not-allowed opacity-80"
+                      : "bg-white text-[#D12031] hover:bg-red-50 cursor-pointer"
+                  }`}
+                >
+                  Notice & Notify
+                </button>
+                {activeJobs.length === 0 && (
+                  <div className="absolute right-0 top-full mt-2.5 hidden group-hover:flex items-center gap-2 bg-slate-900 text-white text-[11px] font-semibold py-2 px-3.5 rounded-xl shadow-2xl whitespace-nowrap z-[100] border border-white/10">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <span>Notice & Notify requires an active in-progress job</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Progress block */}
             <div className="p-6 sm:p-8">
-              {activeJobId === null ? (
+              {isLoadingJobs ? (
+                <div className="flex justify-center p-12">
+                  <div className="w-8 h-8 border-4 border-[#D12031] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : activeJobId === null ? (
                 /* Empty State */
-                <div className="text-center py-12 px-4 text-slate-400 max-w-sm mx-auto bg-white rounded-xl border border-slate-200">
+                (<div className="text-center py-12 px-4 text-slate-400 max-w-sm mx-auto bg-white rounded-xl border border-slate-200">
                   <div className="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mx-auto mb-4">
                     <Briefcase size={24} />
                   </div>
@@ -351,9 +587,11 @@ export default function App() {
                   <p className="text-xs text-slate-400 mt-2 pb-2 font-medium leading-relaxed">
                     Review the assigned work list below and select &quot;Start Job&quot; on a queued task to initiate the tracking stepper.
                   </p>
-                </div>
+                </div>)
               ) : (() => {
-                const activeJob = ASSIGNED_JOBS.find((j) => j.id === activeJobId) ?? ASSIGNED_JOBS[0];
+                const activeJob = activeJobs.find((j) => j.id === activeJobId);
+                if (!activeJob) return null;
+                
                 return (
                   <div className="border-[1.5px] border-[#D12031] rounded-2xl p-6 sm:p-8 bg-white shadow-sm">
                     {/* Meta details & view sheets link */}
@@ -361,7 +599,7 @@ export default function App() {
                       <div className="space-y-1.5">
                         <h4 className="text-[17px] font-bold text-slate-900">{activeJob.title}</h4>
                         <p className="text-xs text-slate-500 font-medium">
-                          {activeJob.loc} • ID #{activeJob.id}
+                          {activeJob.siteName || "Site"} • ID #{activeJob.id.substring(0,8)}
                         </p>
                       </div>
                       <button
@@ -448,8 +686,32 @@ export default function App() {
 
             {/* Stack list container */}
             <div className="p-6 sm:p-8 space-y-5">
-              {ASSIGNED_JOBS.map((job) => {
+              {isLoadingJobs ? (
+                Array(3).fill(0).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 relative overflow-hidden flex flex-col md:flex-row md:items-start justify-between gap-5 border border-slate-200 h-[120px] animate-pulse">
+                    <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-gray-200"></div>
+                    <div className="flex-1 space-y-3 pl-3">
+                       <div className="h-5 bg-gray-200 rounded w-1/2"></div>
+                       <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                       <div className="h-6 bg-gray-200 rounded w-24"></div>
+                    </div>
+                  </div>
+                ))
+              ) : activeJobs.length === 0 ? (
+                <div className="text-center py-12 px-4 text-slate-400 max-w-sm mx-auto bg-white rounded-xl border border-slate-200">
+                  <div className="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mx-auto mb-4">
+                    <CheckCircle size={24} />
+                  </div>
+                  <h4 className="text-[15px] font-bold text-slate-700">All Caught Up!</h4>
+                  <p className="text-xs text-slate-400 mt-2 pb-2 font-medium leading-relaxed">
+                    You have no active work requests assigned to you right now.
+                  </p>
+                </div>
+              ) : activeJobs.map((job) => {
                 const isThisJobActive = activeJobId === job.id;
+                
+                const prio = job.priority?.toLowerCase() || 'medium';
+                
                 return (
                   <div
                     id={`assigned-job-${job.id}`}
@@ -462,21 +724,21 @@ export default function App() {
                     <div className="flex-1 min-w-0 pl-3">
                       <h4 className="text-[17px] font-bold text-slate-900">{job.title}</h4>
                       <p className="text-xs text-slate-500 font-medium mt-1.5">
-                        {job.loc} • ID #{job.id}
+                        {job.siteName || "Site"} • ID #{job.id.substring(0,8)}
                       </p>
                       
                       <div className="mt-4 inline-block">
-                        {job.pri === "High" ? (
-                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 py-1.5 px-4 rounded-lg border border-emerald-200">
-                            High Priority
+                        {prio === "high" || prio === "urgent" ? (
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 py-1.5 px-4 rounded-lg border border-emerald-200 capitalize">
+                            {prio} Priority
                           </span>
-                        ) : job.pri === "Medium" ? (
-                          <span className="text-[11px] font-bold text-lime-700 bg-lime-100/70 py-1.5 px-4 rounded-lg border border-lime-200">
-                            Medium Priority
+                        ) : prio === "medium" ? (
+                          <span className="text-[11px] font-bold text-lime-700 bg-lime-100/70 py-1.5 px-4 rounded-lg border border-lime-200 capitalize">
+                            {prio} Priority
                           </span>
                         ) : (
-                          <span className="text-[11px] font-bold text-yellow-700 bg-yellow-100/70 py-1.5 px-4 rounded-lg border border-yellow-200">
-                            Low Priority
+                          <span className="text-[11px] font-bold text-yellow-700 bg-yellow-100/70 py-1.5 px-4 rounded-lg border border-yellow-200 capitalize">
+                            {prio} Priority
                           </span>
                         )}
                       </div>
@@ -530,70 +792,57 @@ export default function App() {
           {/* 🛠️ ADD COMPLETED WORK ENTRY MODAL DIALOG */}
           <AddWorkLogModal
             isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => {
+              setIsModalOpen(false);
+              setFormData(INITIAL_FORM);
+            }}
             formData={formData}
             onChange={setFormData}
             onSubmit={handleSubmit}
+            sites={sites}
+            activeRequests={activeJobs}
+            isSubmitting={isSubmitting}
           />
         </>
       )}
-
       {/* Overlays / Modals */}
       <NoticeBroadcastModal
         isOpen={isNotifyOpen}
         onClose={() => setIsNotifyOpen(false)}
-        onSendBroadcast={(data) => {
+        onSendBroadcast={async (data) => {
           setIsNotifyOpen(false);
           if (activeJobId) {
             try {
-              const notices: Notice[] = JSON.parse(localStorage.getItem("servicelink_notices") || "[]");
-              const filteredNotices = notices.filter((n: Notice) => n.jobId !== activeJobId);
-              const newNotice = {
-                jobId: activeJobId,
-                ...data,
-                date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              };
-              filteredNotices.push(newNotice);
-              localStorage.setItem("servicelink_notices", JSON.stringify(filteredNotices));
+              const res = await apiFetch(`/api/work-requests/${activeJobId}/notices`, {
+                method: "POST",
+                body: JSON.stringify(data),
+                headers: { "Content-Type": "application/json" },
+              });
 
-              const noticeText = `⚠️ NOTICE & NOTIFY APPLIED\n\nType: ${data.noticeType}\nPriority: ${data.priority}\nDescription: ${data.description}\nAction Required: ${data.actionRequired ? "Yes" : "No"}`;
+              if (res.ok) {
+                const dbNotice = await res.json();
+                const noticeDate = new Date(dbNotice.createdAt);
+                const newNotice = {
+                  jobId: dbNotice.workRequestId,
+                  ...data,
+                  date: noticeDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                  time: noticeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                };
 
-              const chatKey = `servicelink_chat_${activeJobId}`;
-              const storedMessages = JSON.parse(localStorage.getItem(chatKey) || "[]");
-              let updatedMessages = [...storedMessages];
-              if (updatedMessages.length === 0) {
-                updatedMessages = [
-                  {
-                    id: 1,
-                    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                    time: "6/5/2026, 1:47:10 PM",
-                    senderName: "Maurice Maldonado",
-                    initials: "MM",
-                    isCurrentUser: false,
-                  },
-                  {
-                    id: 2,
-                    text: "I have scheduled the repair for tomorrow morning at 9 AM.",
-                    time: "YOU • 10:46 AM",
-                    senderName: "Karl Smith",
-                    initials: "KS",
-                    isCurrentUser: true,
-                  }
-                ];
+                const noticeText = `⚠️ NOTICE & NOTIFY APPLIED\n\nType: ${data.noticeType}\nPriority: ${data.priority}\nDescription: ${data.description}`;
+
+                try {
+                  await apiFetch("/api/messages", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      workRequestId: activeJobId,
+                      content: noticeText
+                    }),
+                  });
+                } catch (msgErr) {
+                  console.error("Failed to post notice message to chat:", msgErr);
+                }
               }
-              const newMsg = {
-                id: `notice_${activeJobId}_${Date.now()}`,
-                text: noticeText,
-                time: `YOU • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-                senderName: "Karl Smith",
-                initials: "KS",
-                isCurrentUser: true,
-                isNotice: true,
-                noticeDetails: newNotice,
-              };
-              updatedMessages.push(newMsg);
-              localStorage.setItem(chatKey, JSON.stringify(updatedMessages));
             } catch (err) {
               console.error(err);
             }
