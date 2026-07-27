@@ -1,7 +1,7 @@
-"use client";import { apiFetch } from "@/lib/apiFetch";
-;
-import { toast } from "react-hot-toast";
+"use client";
 
+import { apiFetch } from "@/lib/apiFetch";
+import { toast } from "react-hot-toast";
 import React, { useState, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import Link from "next/link";
@@ -18,7 +18,6 @@ import {
 import { HiOutlineUpload } from "react-icons/hi";
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
-
 
 interface WorkRequest {
   id: string;
@@ -50,20 +49,36 @@ export default function AdminRequestsPage() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
 
+  // Pagination States (Backend-Driven)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const itemsPerPage = 6;
+
   const fetchRequests = async () => {
     setIsLoading(true);
     try {
-      // Build query string
       const params = new URLSearchParams();
       if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
       if (filterStatus && filterStatus !== "All") params.append("status", filterStatus);
       if (filterPriority && filterPriority !== "All") params.append("priority", filterPriority);
       if (filterSite && filterSite !== "All") params.append("siteId", filterSite);
+      params.append("page", String(currentPage));
+      params.append("limit", String(itemsPerPage));
 
       const res = await apiFetch(`${API_BASE_URL}/api/admin/work-requests?${params.toString()}`, { credentials: "include" });
       if (res.ok) {
-        const data = await res.json();
-        setRequests(data);
+        const result = await res.json();
+        const payload = result.data || result;
+        if (payload && Array.isArray(payload.requests)) {
+          setRequests(payload.requests);
+          setTotalCount(payload.total || payload.requests.length);
+          setServerTotalPages(payload.totalPages || 1);
+        } else if (Array.isArray(payload)) {
+          setRequests(payload);
+          setTotalCount(payload.length);
+          setServerTotalPages(Math.ceil(payload.length / itemsPerPage) || 1);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -104,7 +119,7 @@ export default function AdminRequestsPage() {
     fetchTechs();
     fetchSites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, filterStatus, filterPriority, filterSite]);
+  }, [debouncedSearchTerm, filterStatus, filterPriority, filterSite, currentPage]);
 
   // Modals States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -308,9 +323,6 @@ export default function AdminRequestsPage() {
     setUploadedPhotos(uploadedPhotos.filter((_, idx) => idx !== index));
   };
 
-  // Filtered requests are now handled by the backend
-  const filteredRequests = requests;
-
   return (
     <AdminLayout
       title="My Request Management"
@@ -414,7 +426,7 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
             ))
-          ) : filteredRequests.length === 0 ? (
+          ) : requests.length === 0 ? (
             <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-200 text-center flex flex-col items-center justify-center min-h-[300px]">
               <div className="w-12 h-12 rounded-full bg-red-50 text-[#D12031] flex items-center justify-center mb-3">
                 <FiSearch size={22} />
@@ -438,7 +450,7 @@ export default function AdminRequestsPage() {
               )}
             </div>
           ) : (
-            filteredRequests.map((req) => (
+            requests.map((req) => (
             <div
               key={req.id}
               className="bg-white rounded-2xl border border-gray-200 border-l-[5px] rounded-l-2xl shadow-xs p-6 hover:shadow-md transition-shadow relative flex flex-col justify-between"
@@ -448,29 +460,24 @@ export default function AdminRequestsPage() {
                     ? "#10B981"
                     : req.status === "Active"
                       ? "#D12031"
-                      : req.status === "Assigned"
-                        ? "#F59E0B"
-                        : "#9CA3AF",
+                      : "#F59E0B",
               }}
             >
               <div>
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-[11px] font-black text-gray-400">ID #{req.id}</span>
-                  <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500">
+                  <span className="font-bold text-gray-700">#{req.id.substring(0, 8)}</span>
+                  <div className="flex items-center gap-2">
                     {/* Status Badge */}
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${req.status === "Completed"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                         : req.status === "Active"
-                          ? "bg-red-50 text-[#D12031] border-red-100"
-                          : req.status === "Assigned"
-                            ? "bg-amber-50 text-amber-700 border-amber-100"
-                            : "bg-gray-100 text-gray-600 border-gray-200"
+                          ? "bg-rose-50 text-rose-700 border-rose-100"
+                          : "bg-amber-50 text-amber-700 border-amber-100"
                         }`}
                     >
                       {req.status}
                     </span>
-
                     {/* Priority Badge */}
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${req.priority === "High"
@@ -546,8 +553,63 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
             </div>
-          )))}
+          ))
+        )}
         </div>
+
+        {/* 📄 Backend Pagination Controls */}
+        {requests.length > 0 && serverTotalPages > 1 && (
+          <div className="bg-white px-6 py-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs font-semibold text-gray-500">
+              Showing <span className="font-bold text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)}</span> to{" "}
+              <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of{" "}
+              <span className="font-bold text-gray-900">{totalCount}</span> requests
+            </p>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+              >
+                Previous
+              </button>
+
+              {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
+                .filter((page) => page === 1 || page === serverTotalPages || Math.abs(page - currentPage) <= 1)
+                .map((page, idx, array) => {
+                  const prevPage = array[idx - 1];
+                  const showEllipsis = prevPage && page - prevPage > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {showEllipsis && <span className="px-2 text-xs font-bold text-gray-400">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          currentPage === page
+                            ? "bg-[#D12031] text-white border-[#D12031] shadow-xs"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              <button
+                type="button"
+                disabled={currentPage === serverTotalPages || serverTotalPages === 0}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, serverTotalPages))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
 

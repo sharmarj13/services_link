@@ -216,6 +216,12 @@ export default function AdministrationSettingsPage() {
     fetchPlatformSettings();
   }, []);
 
+  // Pagination state for users list
+  const [userListPage, setUserListPage] = useState(1);
+  const userItemsPerPage = 4;
+  const totalUserPages = Math.ceil(admins.length / userItemsPerPage);
+  const displayedAdmins = admins.slice((userListPage - 1) * userItemsPerPage, userListPage * userItemsPerPage);
+
   // Form states - Admin
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -672,8 +678,8 @@ export default function AdministrationSettingsPage() {
                 <h3 className="text-sm font-bold text-gray-900">Current Platform Users</h3>
               </div>
 
-              <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-2">
-                {admins.map((adm) => (
+              <div className="divide-y divide-gray-100 min-h-[220px]">
+                {displayedAdmins.map((adm) => (
                   <div key={adm.id} className="py-3.5 flex items-start justify-between text-xs font-semibold">
                     <div className="space-y-0.5">
                       <h4 className="text-gray-950 font-bold">{adm.name || "N/A"}</h4>
@@ -732,6 +738,34 @@ export default function AdministrationSettingsPage() {
                   </div>
                 ))}
               </div>
+
+              {/* 📄 Users List Pagination */}
+              {admins.length > userItemsPerPage && (
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-gray-500">
+                    Page <span className="font-bold text-gray-900">{userListPage}</span> of{" "}
+                    <span className="font-bold text-gray-900">{totalUserPages}</span> ({admins.length} users)
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={userListPage === 1}
+                      onClick={() => setUserListPage((prev) => Math.max(prev - 1, 1))}
+                      className="px-2.5 py-1 text-[11px] font-bold border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      disabled={userListPage === totalUserPages}
+                      onClick={() => setUserListPage((prev) => Math.min(prev + 1, totalUserPages))}
+                      className="px-2.5 py-1 text-[11px] font-bold border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -207,8 +207,47 @@ export default function WorkRequestsPage() {
     document.body.removeChild(link);
   };
 
-  // Filter list is now handled 100% on the server side
-  const filteredJobs = jobsList;
+  // Filter jobs based on active search/filter dropdown
+  const filteredJobs = jobsList.filter((job) => {
+    // 1. Search Query Filter
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase().trim();
+      const matchTitle = job.title.toLowerCase().includes(q);
+      const matchSite = (job.siteName || "").toLowerCase().includes(q);
+      const matchId = job.id.toLowerCase().includes(q);
+      if (!matchTitle && !matchSite && !matchId) return false;
+    }
+    // 2. Status Filter
+    if (activeFilter === "Assigned" && job.status !== "pending") return false;
+    if (activeFilter === "In Progress" && job.status !== "in_progress") return false;
+    if (activeFilter === "Active" && job.status !== "pending" && job.status !== "in_progress") return false;
+    if (activeFilter === "Completed" && job.status !== "completed") return false;
+
+    // 3. Department Filter
+    if (currentFilters.department && currentFilters.department !== "All departments") {
+      if (((job as any).departmentName || (job as any).department) !== currentFilters.department) return false;
+    }
+    // 4. Priority Filter
+    if (currentFilters.priority && currentFilters.priority !== "All priorities") {
+      if (job.priority?.toLowerCase() !== currentFilters.priority.toLowerCase()) return false;
+    }
+
+    return true;
+  });
+
+  // Pagination Logic
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery, currentFilters]);
+
+  const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
+  const displayedJobs = filteredJobs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const getBadgeColor = (priority: string) => {
     const prio = priority?.toLowerCase();
@@ -338,7 +377,7 @@ export default function WorkRequestsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredJobs.map((job) => {
+              {displayedJobs.map((job) => {
                 const hasNotice = notices.some((n: Notice) => n.jobId === job.id);
                 const isCompleted = job.status === "completed";
                 const isStarted = job.status === "in_progress";
@@ -402,6 +441,60 @@ export default function WorkRequestsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* 📄 Pagination Controls */}
+          {filteredJobs.length > 0 && totalPages > 1 && (
+            <div className="mt-6 pt-4 border-t border-gray-150 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs font-semibold text-gray-500">
+                Showing <span className="font-bold text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredJobs.length)}</span> to{" "}
+                <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> of{" "}
+                <span className="font-bold text-gray-900">{filteredJobs.length}</span> jobs
+              </p>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                  .map((page, idx, array) => {
+                    const prevPage = array[idx - 1];
+                    const showEllipsis = prevPage && page - prevPage > 1;
+                    return (
+                      <React.Fragment key={page}>
+                        {showEllipsis && <span className="px-2 text-xs font-bold text-gray-400">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            currentPage === page
+                              ? "bg-[#D12031] text-white border-[#D12031] shadow-xs"
+                              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
