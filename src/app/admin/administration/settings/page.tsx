@@ -235,6 +235,8 @@ export default function AdministrationSettingsPage() {
   const [bizName, setBizName] = useState("");
   const [bizContact, setBizContact] = useState("");
   const [bizEmail, setBizEmail] = useState("");
+  const [bizAddress, setBizAddress] = useState("");
+  const [bizPhone, setBizPhone] = useState("");
   const [bizLogoUrl, setBizLogoUrl] = useState("");
   const [bizThemeColor, setBizThemeColor] = useState("#D12031");
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -399,7 +401,7 @@ export default function AdministrationSettingsPage() {
   const handleAddBizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bizName || !bizContact || !bizEmail) {
-      showToast("Please fill in all business fields.", "error");
+      showToast("Please fill in all required business fields.", "error");
       return;
     }
     setIsSubmittingBiz(true);
@@ -408,8 +410,14 @@ export default function AdministrationSettingsPage() {
         method: "POST",
         body: JSON.stringify({
           businessName: bizName,
+          name: bizName,
           contact: bizContact,
+          contactName: bizContact,
           email: bizEmail,
+          contactEmail: bizEmail,
+          address: bizAddress,
+          phone: bizPhone,
+          contactPhone: bizPhone,
           logoUrl: bizLogoUrl,
           themeColor: bizThemeColor,
           siteType: "business",
@@ -421,6 +429,8 @@ export default function AdministrationSettingsPage() {
         setBizName("");
         setBizContact("");
         setBizEmail("");
+        setBizAddress("");
+        setBizPhone("");
         setBizLogoUrl("");
         setBizThemeColor("#D12031");
         showToast("Business entity registered successfully!");
@@ -785,27 +795,99 @@ export default function AdministrationSettingsPage() {
 
               <form onSubmit={handleAddBizSubmit} className="space-y-4">
                 <div className="space-y-4">
+
+                  {/* Logo Image — square box at top */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Business Company Name *</label>
+                    <div className="h-5 flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-700">Logo Image</label>
+                      {bizLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setBizLogoUrl("")}
+                          className="text-[11px] font-semibold text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer flex items-center gap-1 p-0"
+                        >
+                          <FiX size={12} /> Remove
+                        </button>
+                      )}
+                    </div>
                     <input
-                      type="text"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                      placeholder="e.g. BuildersInc Co."
-                      value={bizName}
-                      onChange={(e) => setBizName(e.target.value)}
+                      type="file"
+                      ref={logoFileInputRef}
+                      onChange={handleLogoFileChange}
+                      accept="image/*"
+                      className="hidden"
+                      hidden
                     />
+                    {bizLogoUrl ? (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl">
+                        <div className="w-14 h-14 rounded-lg border border-gray-200 bg-white flex items-center justify-center overflow-hidden shrink-0">
+                          <img
+                            src={bizLogoUrl}
+                            alt="Logo preview"
+                            style={{ width: "56px", height: "56px", objectFit: "contain" }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-800">Logo Ready</p>
+                          <p className="text-[10px] text-gray-400 truncate">{bizLogoUrl.startsWith("data:") ? "Image attached" : bizLogoUrl}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={isUploadingLogo}
+                          className="text-[11px] font-bold text-gray-600 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-100 transition-colors cursor-pointer shadow-xs shrink-0"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => !isUploadingLogo && logoFileInputRef.current?.click()}
+                        className={`w-full bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#D12031]/50 hover:bg-red-50/20 rounded-xl cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 aspect-square max-h-[120px] ${
+                          isUploadingLogo ? "opacity-60 pointer-events-none" : ""
+                        }`}
+                      >
+                        {isUploadingLogo ? (
+                          <>
+                            <span className="w-6 h-6 border-2 border-[#D12031]/30 border-t-[#D12031] rounded-full animate-spin" />
+                            <span className="text-xs font-bold text-gray-500">Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiUpload className="text-[#D12031]" size={20} />
+                            <span className="text-xs font-bold text-gray-600">Upload Logo</span>
+                            <span className="text-[10px] text-gray-400">PNG, JPG, SVG</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Account Contact Representative *</label>
-                    <input
-                      type="text"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                      placeholder="e.g. Sarah Connor"
-                      value={bizContact}
-                      onChange={(e) => setBizContact(e.target.value)}
-                    />
+
+                  {/* Row 1: Business Name + Contact Rep */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Business Company Name *</label>
+                      <input
+                        type="text"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="e.g. BuildersInc Co."
+                        value={bizName}
+                        onChange={(e) => setBizName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Contact Representative *</label>
+                      <input
+                        type="text"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="e.g. Sarah Connor"
+                        value={bizContact}
+                        onChange={(e) => setBizContact(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  
+
+                  {/* Row 2: Email + Phone */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-gray-700">Contact Email *</label>
@@ -818,92 +900,49 @@ export default function AdministrationSettingsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-700">Logo Image</label>
-                        {bizLogoUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setBizLogoUrl("")}
-                            className="text-[11px] font-semibold text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer flex items-center gap-1 p-0"
-                          >
-                            <FiX size={12} /> Remove
-                          </button>
-                        )}
-                      </div>
-
-                      <input
-                        type="file"
-                        ref={logoFileInputRef}
-                        onChange={handleLogoFileChange}
-                        accept="image/*"
-                        className="hidden"
-                      />
-
-                      {bizLogoUrl ? (
-                        <div className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-200 rounded-xl">
-                          <div className="w-10 h-10 rounded-lg border border-gray-200 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0">
-                            <img
-                              src={bizLogoUrl}
-                              alt="Logo preview"
-                              className="max-w-full max-h-full object-contain"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-gray-800 truncate">Logo Ready</p>
-                            <p className="text-[10px] text-gray-400 truncate">{bizLogoUrl.startsWith("data:") ? "Image file attached" : bizLogoUrl}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => logoFileInputRef.current?.click()}
-                            disabled={isUploadingLogo}
-                            className="px-2.5 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer border-none shadow-xs"
-                          >
-                            Change
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => !isUploadingLogo && logoFileInputRef.current?.click()}
-                          className={`w-full bg-gray-50 border border-gray-200 hover:border-[#D12031]/50 hover:bg-red-50/20 rounded-xl px-4 py-2.5 cursor-pointer transition-all flex items-center justify-center gap-2 ${
-                            isUploadingLogo ? "opacity-60 pointer-events-none" : ""
-                          }`}
-                        >
-                          {isUploadingLogo ? (
-                            <>
-                              <span className="w-4 h-4 border-2 border-[#D12031]/30 border-t-[#D12031] rounded-full animate-spin" />
-                              <span className="text-xs font-bold text-gray-600">Uploading Logo...</span>
-                            </>
-                          ) : (
-                            <>
-                              <FiUpload className="text-[#D12031]" size={15} />
-                              <span className="text-xs font-bold text-gray-700">Upload Logo Image</span>
-                              <span className="text-[10px] font-medium text-gray-400">(PNG, JPG, SVG)</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Theme Color (Whitelabel)</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        className="w-12 h-11 rounded-xl border border-gray-200 cursor-pointer bg-transparent p-1"
-                        value={bizThemeColor}
-                        onChange={(e) => setBizThemeColor(e.target.value)}
-                      />
+                      <label className="text-xs font-bold text-gray-700">Phone Number</label>
                       <input
                         type="text"
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                        placeholder="#D12031"
-                        value={bizThemeColor}
-                        onChange={(e) => setBizThemeColor(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="e.g. +1 (555) 234-5678"
+                        value={bizPhone}
+                        onChange={(e) => setBizPhone(e.target.value)}
                       />
                     </div>
                   </div>
-                  
+
+                  {/* Row 3: Business Address + Theme Color */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Business Address</label>
+                      <input
+                        type="text"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                        placeholder="e.g. 100 Cardinal Way, Suite 400"
+                        value={bizAddress}
+                        onChange={(e) => setBizAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Theme Color</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          className="w-12 h-11 rounded-xl border border-gray-200 cursor-pointer bg-transparent p-1 shrink-0"
+                          value={bizThemeColor}
+                          onChange={(e) => setBizThemeColor(e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
+                          placeholder="#D12031"
+                          value={bizThemeColor}
+                          onChange={(e) => setBizThemeColor(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="pt-2">
                     <button
                       type="submit"
@@ -917,6 +956,7 @@ export default function AdministrationSettingsPage() {
                       )}
                     </button>
                   </div>
+
                 </div>
               </form>
             </div>
