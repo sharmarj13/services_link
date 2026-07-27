@@ -213,6 +213,20 @@ export default function CustomerRequestsPage() {
 
   const filteredJobs = allJobs; // Backend now perfectly filters everything including exact status
 
+  // Pagination Logic
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, activeFilters, activeStatus]);
+
+  const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
+  const displayedJobs = filteredJobs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   const handleExportCSV = () => {
     if (filteredJobs.length === 0) {
       toast.success("No data to export.");
@@ -355,43 +369,99 @@ export default function CustomerRequestsPage() {
           ))}
         </div>
       ) : filteredJobs.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredJobs.map((job) => (
-            <div
-              key={job.id}
-              className={`border border-gray-200 border-l-[4px] ${STATUS_BORDER[job.status] || "border-l-gray-300"} rounded-2xl p-5 sm:p-6 bg-white shadow-xs hover:shadow-md transition-shadow relative`}
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3 pr-8">
-                  <h4 className="text-[16px] font-bold text-gray-900 leading-tight">
-                    {job.title}
-                  </h4>
-                </div>
-
-                <div className="text-[12px] text-gray-450 font-semibold">
-                  {job.location} • ID #{job.id.slice(0, 8).toUpperCase()}
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${PRIORITY_BADGE[job.priority]}`}>
-                    {job.priority} Priority
-                  </span>
-                  <span className={`text-[11px] font-extrabold flex items-center gap-1.5 ${STATUS_COLOR[job.status] || "text-gray-500"}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {job.status}
-                  </span>
-                </div>
-              </div>
-
-              <Link
-                href={`/customer/requests/${job.id}`}
-                className="absolute right-5 bottom-5 text-[#D12031] hover:text-[#b81d2c] text-sm font-bold flex items-center gap-0.5"
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {displayedJobs.map((job) => (
+              <div
+                key={job.id}
+                className={`border border-gray-200 border-l-[4px] ${STATUS_BORDER[job.status] || "border-l-gray-300"} rounded-2xl p-5 sm:p-6 bg-white shadow-xs hover:shadow-md transition-shadow relative`}
               >
-                View <span className="text-[16px] mb-0.5">›</span>
-              </Link>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3 pr-8">
+                    <h4 className="text-[16px] font-bold text-gray-900 leading-tight">
+                      {job.title}
+                    </h4>
+                  </div>
+
+                  <div className="text-[12px] text-gray-450 font-semibold">
+                    {job.location} • ID #{job.id.slice(0, 8).toUpperCase()}
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${PRIORITY_BADGE[job.priority]}`}>
+                      {job.priority} Priority
+                    </span>
+                    <span className={`text-[11px] font-extrabold flex items-center gap-1.5 ${STATUS_COLOR[job.status] || "text-gray-500"}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                      {job.status}
+                    </span>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/customer/requests/${job.id}`}
+                  className="absolute right-5 bottom-5 text-[#D12031] hover:text-[#b81d2c] text-sm font-bold flex items-center gap-0.5"
+                >
+                  View <span className="text-[16px] mb-0.5">›</span>
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          {/* 📄 Pagination Controls */}
+          {filteredJobs.length > 0 && totalPages > 1 && (
+            <div className="mt-6 bg-white px-6 py-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs font-semibold text-gray-500">
+                Showing <span className="font-bold text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredJobs.length)}</span> to{" "}
+                <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> of{" "}
+                <span className="font-bold text-gray-900">{filteredJobs.length}</span> requests
+              </p>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                  .map((page, idx, array) => {
+                    const prevPage = array[idx - 1];
+                    const showEllipsis = prevPage && page - prevPage > 1;
+                    return (
+                      <React.Fragment key={page}>
+                        {showEllipsis && <span className="px-2 text-xs font-bold text-gray-400">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            currentPage === page
+                              ? "bg-[#D12031] text-white border-[#D12031] shadow-xs"
+                              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-all"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
         <div className="text-center py-20 bg-white border border-gray-200 rounded-2xl p-6">
           <div className="text-gray-400 font-bold text-base">No work requests found matching search or filters.</div>

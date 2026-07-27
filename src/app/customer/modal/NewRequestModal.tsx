@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FiCalendar, FiTrash2, FiCheck } from "react-icons/fi";
 import { HiOutlineUpload } from "react-icons/hi";
+import { toast } from "react-hot-toast";
 import { apiFetch } from "@/lib/apiFetch";
 import { API_BASE_URL } from "@/config";
 
@@ -151,15 +152,15 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
     setError("");
 
     if (!reqTitle.trim()) {
-      setError("Request Title is required.");
+      toast.error("Request Title is required.");
       return;
     }
     if (!detailedDesc.trim()) {
-      setError("Detailed Description is required.");
+      toast.error("Detailed Description is required.");
       return;
     }
     if (!siteId) {
-      setError("User Site ID is not initialized. Please refresh and try again.");
+      toast.error("User Site ID is not initialized. Please refresh and try again.");
       return;
     }
 
@@ -189,20 +190,21 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
 
       if (!response.ok) {
         const errData = await response.json();
-        setError(errData.message || "Failed to create work request. Check details.");
+        const errMsg = errData.message || "Failed to create work request. Check details.";
+        toast.error(errMsg);
         setIsLoading(false);
         return;
       }
 
       const data = await response.json();
+      toast.success("Work Request submitted successfully!");
       onSubmit(data);
       resetForm();
       onClose();
     } catch (err) {
       console.error("Submit request error:", err);
-      setError(
-        (err as any).message || "Server connection failed. Make sure the backend is running."
-      );
+      const errMsg = (err as any).message || "Server connection failed. Make sure the backend is running.";
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -219,12 +221,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, siteId }: N
           </p>
         </div>
 
-        {/* Error Alert */}
-        {error && (
-          <div className="mx-6 mt-4 bg-red-50 text-red-750 text-[13px] font-semibold px-4 py-2.5 rounded-xl border border-red-100 text-center leading-normal">
-            {error}
-          </div>
-        )}
+
 
         {/* Form Fields */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">

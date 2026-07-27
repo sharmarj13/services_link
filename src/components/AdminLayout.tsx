@@ -117,6 +117,31 @@ export default function AdminLayout({
     };
   }, [router]);
 
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnreadCounts = async () => {
+      try {
+        const notifRes = await apiFetch("/api/notifications/unread-count");
+        if (notifRes.ok) {
+          const d = await notifRes.json();
+          if (isMounted) setUnreadNotifications(d.count || 0);
+        }
+      } catch (e) {
+        // silent catch
+      }
+    };
+
+    fetchUnreadCounts();
+    const interval = setInterval(fetchUnreadCounts, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Keep Administration dropdown open whenever user is on an administration page
   useEffect(() => {
     if (pathname.startsWith("/admin/administration")) {
@@ -231,14 +256,14 @@ export default function AdminLayout({
                 </span>
                 <span>{item.name}</span>
               </div>
-              {item.name === "Messages" && (
+              {item.name === "Messages" && unreadMessages > 0 && (
                 <span className="bg-white text-[#D12031] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
-                  2
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}
-              {item.name === "Notification" && (
+              {item.name === "Notification" && unreadNotifications > 0 && (
                 <span className="bg-[#ffc107] text-[#856404] text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
-                  3
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </span>
               )}
             </Link>
