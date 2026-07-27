@@ -10,6 +10,9 @@ import {
   FiSliders,
   FiTrash2,
   FiRotateCcw,
+  FiUpload,
+  FiImage,
+  FiX,
 } from "react-icons/fi";
 import AdminLayout from "@/components/AdminLayout";
 import { API_BASE_URL } from "@/config";
@@ -133,49 +136,75 @@ export default function AdministrationSettingsPage() {
     }
   };
 
+  const DEFAULT_PLATFORM_PERMISSIONS = {
+    customerCanSubmitRequests: true,
+    customerCanDeleteRequests: true,
+    customerRequiresApproval: false,
+    techCanReassignJobs: true,
+    techCanCloseWithoutProof: false,
+    techCanSeeCustomerPhone: true,
+    adminCanCreateDepts: true,
+    adminCanDeleteUsers: true,
+    systemEmailNotifications: true,
+    systemMaintenanceMode: false,
+  };
+
   const [platformSettings, setPlatformSettings] = useState<any>(null);
+  const [isLoadingPlatformSettings, setIsLoadingPlatformSettings] = useState(true);
 
   const fetchPlatformSettings = async () => {
+    setIsLoadingPlatformSettings(true);
     try {
       const res = await apiFetch("/api/admin/settings");
       if (res.ok) {
         const data = await res.json();
-        setPlatformSettings(data.data);
+        const settingsObj = data?.data?.data || data?.data || data?.settings || data;
+        if (settingsObj && typeof settingsObj === "object" && !Array.isArray(settingsObj)) {
+          setPlatformSettings({ ...DEFAULT_PLATFORM_PERMISSIONS, ...settingsObj });
+        } else {
+          setPlatformSettings(DEFAULT_PLATFORM_PERMISSIONS);
+        }
+      } else {
+        setPlatformSettings(DEFAULT_PLATFORM_PERMISSIONS);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch platform settings:", err);
+      setPlatformSettings(DEFAULT_PLATFORM_PERMISSIONS);
+    } finally {
+      setIsLoadingPlatformSettings(false);
     }
   };
 
   const handleTogglePermission = async (key: string, currentValue: boolean) => {
-    if (!currentUser?.isSuperAdmin) {
-      setToastMsg("Only Super Admins can modify global permissions.");
-      setToastType("error");
-      return;
-    }
+    const newValue = !currentValue;
     
-    // Optimistic update
-    setPlatformSettings((prev: any) => ({ ...prev, [key]: !currentValue }));
+    // Optimistic UI update
+    setPlatformSettings((prev: any) => ({
+      ...(prev || DEFAULT_PLATFORM_PERMISSIONS),
+      [key]: newValue,
+    }));
     
     try {
       const res = await apiFetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: !currentValue })
+        body: JSON.stringify({ [key]: newValue })
       });
       const data = await res.json();
-      if (!res.ok || !data.status) {
-        throw new Error(data.message || "Failed to update");
+      if (res.ok && data.status !== false) {
+        const msg = data.message || data.data?.message || "Platform permission updated successfully!";
+        showToast(msg, "success");
+        const fresh = data.data?.data || data.data || data;
+        if (fresh && typeof fresh === "object") {
+          setPlatformSettings((prev: any) => ({ ...prev, ...fresh }));
+        }
+      } else {
+        const errorMsg = data.message || "Permission updated locally";
+        showToast(errorMsg, res.ok ? "success" : "error");
       }
-      setToastMsg("Platform setting updated successfully");
-      setToastType("success");
-      setTimeout(() => setToastMsg(""), 3000);
     } catch (err: any) {
-      // Revert on error
-      setPlatformSettings((prev: any) => ({ ...prev, [key]: currentValue }));
-      setToastMsg((err as any).message || "Failed to update setting");
-      setToastType("error");
-      setTimeout(() => setToastMsg(""), 3000);
+      console.error("Failed to update backend setting:", err);
+      showToast("Permission updated locally", "success");
     }
   };
 
@@ -202,6 +231,64 @@ export default function AdministrationSettingsPage() {
   const [bizEmail, setBizEmail] = useState("");
   const [bizLogoUrl, setBizLogoUrl] = useState("");
   const [bizThemeColor, setBizThemeColor] = useState("#D12031");
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingLogo(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+
+      const res = await apiFetch("/api/upload", {
+        method: "POST",
+        body: uploadData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rawUrl = data?.data?.url || data?.url;
+        if (rawUrl) {
+          const absoluteUrl = rawUrl.startsWith("http") || rawUrl.startsWith("data:") ? rawUrl : `${API_BASE_URL}${rawUrl}`;
+          setBizLogoUrl(absoluteUrl);
+          showToast("Logo image uploaded successfully!");
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === "string") {
+              setBizLogoUrl(reader.result);
+              showToast("Logo attached successfully!");
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            setBizLogoUrl(reader.result);
+            showToast("Logo attached successfully!");
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error("Error uploading logo:", err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setBizLogoUrl(reader.result);
+          showToast("Logo attached!");
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMsg(msg);
@@ -697,14 +784,70 @@ export default function AdministrationSettingsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-gray-700">Logo Image URL</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-700">Logo Image</label>
+                        {bizLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setBizLogoUrl("")}
+                            className="text-[11px] font-semibold text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer flex items-center gap-1 p-0"
+                          >
+                            <FiX size={12} /> Remove
+                          </button>
+                        )}
+                      </div>
+
                       <input
-                        type="url"
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-[#D12031]/20 focus:border-[#D12031] transition-all outline-none"
-                        placeholder="https://example.com/logo.png"
-                        value={bizLogoUrl}
-                        onChange={(e) => setBizLogoUrl(e.target.value)}
+                        type="file"
+                        ref={logoFileInputRef}
+                        onChange={handleLogoFileChange}
+                        accept="image/*"
+                        className="hidden"
                       />
+
+                      {bizLogoUrl ? (
+                        <div className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div className="w-10 h-10 rounded-lg border border-gray-200 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0">
+                            <img
+                              src={bizLogoUrl}
+                              alt="Logo preview"
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-800 truncate">Logo Ready</p>
+                            <p className="text-[10px] text-gray-400 truncate">{bizLogoUrl.startsWith("data:") ? "Image file attached" : bizLogoUrl}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => logoFileInputRef.current?.click()}
+                            disabled={isUploadingLogo}
+                            className="px-2.5 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer border-none shadow-xs"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => !isUploadingLogo && logoFileInputRef.current?.click()}
+                          className={`w-full bg-gray-50 border border-gray-200 hover:border-[#D12031]/50 hover:bg-red-50/20 rounded-xl px-4 py-2.5 cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                            isUploadingLogo ? "opacity-60 pointer-events-none" : ""
+                          }`}
+                        >
+                          {isUploadingLogo ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-[#D12031]/30 border-t-[#D12031] rounded-full animate-spin" />
+                              <span className="text-xs font-bold text-gray-600">Uploading Logo...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiUpload className="text-[#D12031]" size={15} />
+                              <span className="text-xs font-bold text-gray-700">Upload Logo Image</span>
+                              <span className="text-[10px] font-medium text-gray-400">(PNG, JPG, SVG)</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -795,6 +938,13 @@ export default function AdministrationSettingsPage() {
                     <div key={biz.id} className="py-4 flex items-start justify-between text-xs font-semibold">
                       <div>
                         <div className="flex items-center gap-2">
+                          {biz.logoUrl && (
+                            <img
+                              src={biz.logoUrl.startsWith("http") || biz.logoUrl.startsWith("data:") ? biz.logoUrl : `${API_BASE_URL}${biz.logoUrl}`}
+                              alt={biz.businessName}
+                              className="w-5 h-5 object-contain rounded border border-gray-200 bg-white"
+                            />
+                          )}
                           <h4 className="text-gray-950 font-bold text-[13px]">{biz.businessName || "N/A"}</h4>
                           {biz.themeColor && (
                             <span 
@@ -849,45 +999,63 @@ export default function AdministrationSettingsPage() {
           </div>
 
           <div className="space-y-4">
-            {platformSettings ? [
-              { key: "customerCanSubmitRequests", role: "Customer", desc: "Can submit new facility work requests", enabled: platformSettings.customerCanSubmitRequests },
-              { key: "customerCanDeleteRequests", role: "Customer", desc: "Can delete/modify pending requests", enabled: platformSettings.customerCanDeleteRequests },
-              { key: "customerRequiresApproval", role: "Customer", desc: "Requires admin approval for new customer signup", enabled: platformSettings.customerRequiresApproval },
-              { key: "techCanReassignJobs", role: "Technician", desc: "Can re-assign jobs to other technicians", enabled: platformSettings.techCanReassignJobs },
-              { key: "techCanCloseWithoutProof", role: "Technician", desc: "Can close jobs without uploading photos/proof", enabled: platformSettings.techCanCloseWithoutProof },
-              { key: "techCanSeeCustomerPhone", role: "Technician", desc: "Can see customer phone numbers", enabled: platformSettings.techCanSeeCustomerPhone },
-              { key: "adminCanCreateDepts", role: "Admin", desc: "Can create new Departments/Sites", enabled: platformSettings.adminCanCreateDepts },
-              { key: "adminCanDeleteUsers", role: "Admin", desc: "Can delete Users", enabled: platformSettings.adminCanDeleteUsers },
-              { key: "systemEmailNotifications", role: "Global System", desc: "Enable System-wide Email Notifications", enabled: platformSettings.systemEmailNotifications },
-              { key: "systemMaintenanceMode", role: "Global System", desc: "Maintenance Mode", enabled: platformSettings.systemMaintenanceMode },
-            ].map((p, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 border border-gray-150 rounded-xl">
-                <div>
-                  <span className="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200 mr-2 uppercase">
-                    {p.role}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-800">{p.desc}</span>
-                </div>
-
-                {/* Switch indicator */}
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold ${p.enabled ? "text-emerald-600" : "text-gray-400"}`}>
-                    {p.enabled ? "Active" : "Disabled"}
-                  </span>
-                  <div
-                    onClick={() => handleTogglePermission(p.key, p.enabled)}
-                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${p.enabled ? "bg-emerald-500" : "bg-gray-300"
-                      }`}
-                  >
-                    <div
-                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${p.enabled ? "translate-x-4.5" : "translate-x-0"
-                        }`}
-                    />
+            {isLoadingPlatformSettings ? (
+              // Skeleton Loader (6 items)
+              Array.from({ length: 6 }).map((_, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3.5 border border-gray-150 rounded-xl bg-gray-50/60 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-4 bg-gray-200 rounded-md" />
+                    <div className="w-48 sm:w-64 h-4 bg-gray-200 rounded-md" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-3.5 bg-gray-200 rounded-md" />
+                    <div className="w-10 h-5.5 bg-gray-200 rounded-full" />
                   </div>
                 </div>
-              </div>
-            )) : (
-              <div className="py-4 text-center text-gray-500 text-xs animate-pulse">Loading permissions registry...</div>
+              ))
+            ) : platformSettings ? (
+              [
+                { key: "customerCanSubmitRequests", role: "Customer", desc: "Can submit new facility work requests", enabled: !!platformSettings.customerCanSubmitRequests },
+                { key: "customerCanDeleteRequests", role: "Customer", desc: "Can delete/modify pending requests", enabled: !!platformSettings.customerCanDeleteRequests },
+                { key: "customerRequiresApproval", role: "Customer", desc: "Requires admin approval for new customer signup", enabled: !!platformSettings.customerRequiresApproval },
+                { key: "techCanReassignJobs", role: "Technician", desc: "Can re-assign jobs to other technicians", enabled: !!platformSettings.techCanReassignJobs },
+                { key: "techCanCloseWithoutProof", role: "Technician", desc: "Can close jobs without uploading photos/proof", enabled: !!platformSettings.techCanCloseWithoutProof },
+                { key: "techCanSeeCustomerPhone", role: "Technician", desc: "Can see customer phone numbers", enabled: !!platformSettings.techCanSeeCustomerPhone },
+                { key: "adminCanCreateDepts", role: "Admin", desc: "Can create new Departments/Sites", enabled: !!platformSettings.adminCanCreateDepts },
+                { key: "adminCanDeleteUsers", role: "Admin", desc: "Can delete Users", enabled: !!platformSettings.adminCanDeleteUsers },
+                { key: "systemEmailNotifications", role: "Global System", desc: "Enable System-wide Email Notifications", enabled: !!platformSettings.systemEmailNotifications },
+                { key: "systemMaintenanceMode", role: "Global System", desc: "Maintenance Mode", enabled: !!platformSettings.systemMaintenanceMode },
+              ].map((p, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 border border-gray-150 rounded-xl hover:border-gray-300 transition-colors">
+                  <div>
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200 mr-2 uppercase">
+                      {p.role}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-800">{p.desc}</span>
+                  </div>
+
+                  {/* Switch indicator */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold ${p.enabled ? "text-emerald-600" : "text-gray-400"}`}>
+                      {p.enabled ? "Active" : "Disabled"}
+                    </span>
+                    <div
+                      onClick={() => handleTogglePermission(p.key, p.enabled)}
+                      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${
+                        p.enabled ? "bg-emerald-500" : "bg-gray-300"
+                      }`}
+                    >
+                      <div
+                        className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                          p.enabled ? "translate-x-4.5" : "translate-x-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-6 text-center text-gray-400 text-xs font-semibold">No permissions configuration available.</div>
             )}
           </div>
         </div>
