@@ -50,30 +50,41 @@ export async function apiFetch(
   });
 
   // Automatically parse JSON response
-  let jsonResponse;
+  let jsonResponse: any;
   const contentType = response.headers.get("content-type");
   if (contentType && contentType.includes("application/json")) {
     try {
       jsonResponse = await response.json();
     } catch (e) {
-      // Ignored
+      // Body wasn't valid JSON — return response as-is (body was attempted to be read)
+      return new Response(null, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     }
   }
 
   // If the backend wrapped it in { status, message, data }
   if (jsonResponse && typeof jsonResponse.status === "boolean") {
-    let payloadToYield;
-    
     if (jsonResponse.status === false) {
       throw new Error(jsonResponse.message || "An error occurred");
-    } else {
-      payloadToYield = jsonResponse.data !== undefined ? jsonResponse.data : {};
     }
-    
-    return new Response(JSON.stringify(payloadToYield), {
+    const payload = jsonResponse.data !== undefined ? jsonResponse.data : {};
+    return new Response(JSON.stringify(payload), {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers
+      headers: response.headers,
+    });
+  }
+
+  // For all other JSON responses (including error codes like EMAIL_RATE_LIMIT),
+  // return a new Response with the already-read body so callers can still call .json()
+  if (jsonResponse !== undefined) {
+    return new Response(JSON.stringify(jsonResponse), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
     });
   }
 
